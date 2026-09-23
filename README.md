@@ -1,63 +1,61 @@
-# picslop
+<div align="center">
+  <br>
+  <h1>picslop</h1>
+  <sub>a private image & video board for people who share one inbox domain</sub>
+  <br>
+  <br>
+</div>
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines SvelteKit, Self, and more.
+picslop is a self-hosted image and video board gated to your own email domain. Sign-in is magic-link only, no passwords — post images or short clips, vote, comment in threads, react with emoji, and sort by hot, top, new, or most discussed.
 
-## Features
+- 🔗 Passwordless auth via magic link (Better Auth), domain-restricted sign-up
+- 🖼️ Images and video, with HEIC→JPEG conversion and in-browser video validation
+- ⬆️⬇️ Voting, nested comments, and emoji reactions
+- 🔥 Hot / top / new / most-discussed sorting
+- 🪣 Media stored in Cloudflare R2 via presigned uploads
+- 🛡️ Cloudflare Turnstile on sign-in, Redis-backed rate limiting, admin ban tools
+- 📱 Installable as a PWA
 
-- **TypeScript** - For type safety and improved developer experience
-- **SvelteKit** - Web framework for building Svelte apps
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Mongoose** - TypeScript-first ORM
-- **MongoDB** - Database engine
-- **Authentication** - Better-Auth
-
-## Getting Started
-
-First, install the dependencies:
+## Quick Start
 
 ```bash
 bun install
 ```
 
-## Database Setup
+Copy `apps/web/.env.schema` to `apps/web/.env` and fill in the values:
 
-This project uses MongoDB with Mongoose.
-
-1. Make sure you have MongoDB set up.
-2. Update your `apps/web/.env` file with your MongoDB connection URI.
-
-Then, run the development server:
+| Variable | How to get it |
+|---|---|
+| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | Your app's URL, e.g. `http://localhost:5173` |
+| `DATABASE_URL` | A MongoDB connection string |
+| `ALLOWED_EMAIL_DOMAINS` | Comma-separated domains allowed to sign in |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | [upstash.com](https://upstash.com) |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` | [Cloudflare R2](https://developers.cloudflare.com/r2/) |
+| `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` | [Cloudflare Turnstile](https://developers.cloudflare.com/turnstile/) — test keys work for local dev |
+| `RESEND_API_KEY` | [resend.com](https://resend.com) — optional, magic links print to the console without it |
 
 ```bash
 bun run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser to see the fullstack application.
-
-## Environment Configuration
-
-Each app owns its environment schema in `.env.schema`. Varlock generates `src/env.ts` during installation; run `bun run env:generate` after changing a schema. Commit schemas, and keep secrets in ignored env files or your deployment platform.
-
-Import the generated `ENV` accessor in application code. Shared database and auth packages receive configuration or initialized clients from the application. See [Varlock's monorepo guide](https://varlock.dev/guides/monorepos/).
-
-Bun's automatic env loading is disabled in `bunfig.toml`; the framework integration or server bootstrap loads Varlock. Node deployments must include Varlock and its dependencies alongside the app schema.
-
-Run standalone Node/Bun tools that use Varlock from the owning app directory so they load that app's schema and env files. `env:generate` only generates TypeScript files; it does not initialize environment values in a subsequent command.
+Open [http://localhost:5173](http://localhost:5173).
 
 ## Project Structure
 
 ```
 picslop/
 ├── apps/
-│   └── web/         # Fullstack application (SvelteKit)
+│   └── web/         # SvelteKit app
 ├── packages/
-│   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
+│   ├── auth/        # Better Auth configuration
+│   └── db/          # Mongoose schema & queries
 ```
 
-## Available Scripts
+## Contribute
 
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run check-types`: Check TypeScript types across all apps
+This is a personal project, built in the open. Ideas, issues, and PRs are welcome.
+
+## License
+
+[MIT](./LICENSE)

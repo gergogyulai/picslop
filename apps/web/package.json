@@ -16,9 +16,15 @@
   "dependencies": {
     "@picslop/auth": "workspace:*",
     "@picslop/db": "workspace:*",
-    "@tanstack/svelte-form": "^1.33.5",
+    "@upstash/ratelimit": "^2.2.0",
+    "@upstash/redis": "^1.39.0",
     "@varlock/vite-integration": "1.5.1",
+    "aws4fetch": "^1.0.20",
     "better-auth": "catalog:",
+    "emoji-picker-element": "^1.29.1",
+    "emoji-picker-element-data": "^1.8.0",
+    "heic-to": "^1.5.2",
+    "sharp": "^0.35.4",
     "varlock": "catalog:",
     "zod": "catalog:"
   },
