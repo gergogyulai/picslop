@@ -1,0 +1,3 @@
+{
+  "extends": "@picslop/config/tsconfig.base.json"
+}
