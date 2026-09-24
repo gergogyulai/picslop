@@ -1,18 +1,24 @@
 <script lang="ts">
 	import type { PostView } from '$lib/constants';
 	import { formatDuration, timeAgo } from '$lib/format';
+	import { cardRatio } from '$lib/masonry';
 	import VoteButtons from './VoteButtons.svelte';
 
 	let { post, index = 0, rank }: { post: PostView; index?: number; rank?: number } = $props();
 
 	// Deterministic small tilt per post so the board feels pinned-up, not gridded.
 	const tilt = $derived(((post.id.charCodeAt(0) + post.id.charCodeAt(1)) % 5) * 0.45 - 0.9);
-	const ratio = $derived(post.width && post.height ? Math.min(Math.max(post.height / post.width, 0.45), 1.9) : 1);
+	const ratio = $derived(cardRatio(post));
+	// Only the first screenful animates in; later cards (incl. infinite-scroll pages) just appear,
+	// and `backwards` fill drops the animation once done so nothing stays promoted to a layer.
+	const intro = $derived(
+		index < 12 ? `animation: rise 420ms cubic-bezier(.2,.8,.2,1) ${index * 45}ms backwards;` : ''
+	);
 </script>
 
 <article
-	class="group relative mb-3 break-inside-avoid sm:mb-5"
-	style="--tilt:{tilt}deg; animation: rise 420ms cubic-bezier(.2,.8,.2,1) both; animation-delay:{Math.min(index, 12) * 45}ms"
+	class="group relative mb-3 sm:mb-5"
+	style="--tilt:{tilt}deg; transform: rotate({tilt}deg); {intro}"
 >
 	<div
 		class="box @container transition-[transform,box-shadow] duration-150 group-hover:-translate-x-0.5 group-hover:-translate-y-0.5 group-hover:shadow-hard-lg"

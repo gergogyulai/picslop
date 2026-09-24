@@ -2,7 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api';
-	import PostCard from '$lib/components/PostCard.svelte';
+	import Masonry from '$lib/components/Masonry.svelte';
 	import type { PostView } from '$lib/constants';
 	import { signOut } from '$lib/session';
 	import { toast, toastError } from '$lib/toast.svelte';
@@ -80,11 +80,7 @@
 			{#if data.isMe}<a href="/upload" class="btn btn-accent mt-6">Upload your first</a>{/if}
 		</div>
 	{:else}
-		<div class="columns-2 gap-3 sm:gap-4 md:columns-3 md:gap-5 xl:columns-4 2xl:columns-5">
-			{#each posts as post, i (post.id)}
-				<PostCard {post} index={i} />
-			{/each}
-		</div>
+		<Masonry {posts} />
 		{#if nextOffset !== null}
 			<div class="flex justify-center py-10">
 				<button class="btn" onclick={loadMore} disabled={loading}>{loading ? 'Loading…' : 'Load more'}</button>

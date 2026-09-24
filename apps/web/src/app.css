@@ -179,6 +179,14 @@
     color: var(--color-muted);
   }
 
+  /* Skip rendering cards that are far offscreen. content-visibility clips painting to the padding
+     box, so pad (and cancel with margin) enough room for the tilt, hard shadow and rank badge. */
+  .offscreen-skip {
+    content-visibility: auto;
+    padding: 10px;
+    margin: -10px;
+  }
+
   .tape {
     position: absolute;
     width: 84px;

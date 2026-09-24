@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { api } from '$lib/api';
-	import PostCard from '$lib/components/PostCard.svelte';
+	import Masonry from '$lib/components/Masonry.svelte';
 	import { SORTS, type PostView } from '$lib/constants';
+	import { FEED_COOKIE, setPrefCookie } from '$lib/masonry';
 	import { toastError } from '$lib/toast.svelte';
+	import { untrack } from 'svelte';
 
 	let { data } = $props();
 
@@ -16,17 +18,11 @@
 	let sentinel = $state<HTMLDivElement>();
 
 	// Phones can switch between a 2-up grid and a 1-up feed; remembered per device.
-	let feed = $state(false);
-	$effect(() => {
-		try {
-			feed = localStorage.getItem('board-layout') === 'feed';
-		} catch {}
-	});
+	// Read once: layout data isn't reloaded on client navigation, so deriving would undo the toggle.
+	let feed = $state(untrack(() => data.boardFeed));
 	function toggleLayout() {
 		feed = !feed;
-		try {
-			localStorage.setItem('board-layout', feed ? 'feed' : 'grid');
-		} catch {}
+		setPrefCookie(FEED_COOKIE, feed ? '1' : '0');
 	}
 
 	async function loadMore() {
@@ -114,11 +110,7 @@
 		</div>
 	{:else}
 		{#key data.sort}
-			<div class="{feed ? 'columns-1' : 'columns-2'} gap-3 sm:columns-2 sm:gap-4 md:columns-3 md:gap-5 xl:columns-4 2xl:columns-5">
-				{#each posts as post, i (post.id)}
-					<PostCard {post} index={i} rank={data.sort === 'top' ? i : undefined} />
-				{/each}
-			</div>
+			<Masonry {posts} {feed} ranked={data.sort === 'top'} />
 		{/key}
 
 		<div bind:this={sentinel} class="flex justify-center py-10">
