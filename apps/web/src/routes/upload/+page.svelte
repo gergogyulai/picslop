@@ -12,7 +12,7 @@
 		VIDEO_MAX_SECONDS
 	} from '$lib/constants';
 	import { formatBytes, formatDuration } from '$lib/format';
-	import { isSupportedFile, prepareFile, putWithProgress, type Prepared } from '$lib/media-prep';
+	import { fingerprint, isSupportedFile, prepareFile, putWithProgress, type Prepared } from '$lib/media-prep';
 	import { toast } from '$lib/toast.svelte';
 
 	let { data } = $props();
@@ -28,6 +28,8 @@
 		caption: string;
 		progress: number;
 		postId?: string;
+		/** Content fingerprint, set once the file has been read; used to reject duplicates. */
+		hash?: string;
 	};
 
 	const CONCURRENCY = 3;
@@ -65,11 +67,22 @@
 	function addFiles(list: FileList | File[] | null | undefined) {
 		if (!list?.length) return;
 		error = null;
-		const files = [...list];
+		// Cheap first pass: the exact same file picked twice. Renamed copies are caught by content in runPrepQueue.
+		const seen = new Set(items.map((i) => quickKey(i.source)));
+		const files: File[] = [];
+		let dupes = 0;
+		for (const f of list) {
+			if (seen.has(quickKey(f))) dupes++;
+			else {
+				seen.add(quickKey(f));
+				files.push(f);
+			}
+		}
 		const unsupported = files.filter((f) => !isSupportedFile(f));
 		const room = BULK_MAX_FILES - active.length;
 		const accepted = files.filter(isSupportedFile).slice(0, Math.max(0, room));
 
+		if (dupes) toastDupes(dupes);
 		if (unsupported.length) toast(`Skipped ${unsupported.length} unsupported file${unsupported.length > 1 ? 's' : ''}.`, 'error');
 		if (files.length - unsupported.length > accepted.length) {
 			toast(`Only ${BULK_MAX_FILES} files per upload — the rest were left out.`, 'error');
@@ -84,6 +97,9 @@
 		runPrepQueue();
 	}
 
+	const quickKey = (f: File) => `${f.name}|${f.size}|${f.lastModified}`;
+	const toastDupes = (n: number) => toast(`Skipped ${n} duplicate file${n > 1 ? 's' : ''}.`, 'error');
+
 	/** One file at a time: HEIC decoding and video probing are heavy on phones. */
 	async function runPrepQueue() {
 		if (prepRunning) return;
@@ -92,6 +108,14 @@
 			const item = prepQueue.shift()!;
 			if (!items.includes(item)) continue; // removed while waiting
 			try {
+				const hash = await fingerprint(item.source);
+				if (!items.includes(item)) continue;
+				if (items.some((i) => i !== item && i.hash === hash)) {
+					items = items.filter((i) => i !== item);
+					toastDupes(1);
+					continue;
+				}
+				item.hash = hash;
 				const prepared = await prepareFile(item.source, (s) => (item.note = s));
 				if (!items.includes(item)) {
 					URL.revokeObjectURL(prepared.previewUrl);

@@ -41,6 +41,20 @@ export function isSupportedFile(f: File) {
   return isHeic(f) || f.type.startsWith("image/") || isVideo(f);
 }
 
+const SAMPLE = 2 * 1024 * 1024;
+
+/**
+ * Content fingerprint used to spot the same file added twice (even renamed). Small files are hashed
+ * whole; big ones by size + first and last 2 MB, which keeps 150 MB videos cheap on phones.
+ */
+export async function fingerprint(f: Blob): Promise<string> {
+  const parts: BlobPart[] = [String(f.size), "|"];
+  if (f.size <= SAMPLE * 4) parts.push(f);
+  else parts.push(f.slice(0, SAMPLE), f.slice(f.size - SAMPLE));
+  const digest = await crypto.subtle.digest("SHA-256", await new Blob(parts).arrayBuffer());
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 /** Validates and converts one file. `onStatus` reports slow steps ("Converting HEIC…"). */
 export async function prepareFile(f: File, onStatus?: (s: string) => void): Promise<Prepared> {
   if (isHeic(f)) {

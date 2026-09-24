@@ -17,7 +17,7 @@ export const POST: RequestHandler = async (event) => {
   if (!items.every((i) => i && typeof i === "object" && !Array.isArray(i))) error(400, "Invalid upload.");
 
   await verifyTurnstile(body.turnstile, clientIp(event));
-  await enforceCost(user.id, items.length, limits.uploadBurst, limits.uploadDaily);
+  await enforceCost(user.id, items.length, limits.upload);
 
   try {
     return json({ uploads: await initUploads({ id: user.id, name: displayName(user) }, items as InitInput[]) });

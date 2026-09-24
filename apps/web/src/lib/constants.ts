@@ -10,7 +10,7 @@ export const IMAGE_MAX_PIXELS = 60_000_000;
 
 export const CAPTION_MAX = 280;
 /** Files per bulk upload; each becomes its own post. */
-export const BULK_MAX_FILES = 50;
+export const BULK_MAX_FILES = 100;
 export const COMMENT_MAX = 500;
 /** Replies nest up to this depth (0 = top level); replying deeper attaches next to the comment instead. */
 export const COMMENT_MAX_DEPTH = 4;

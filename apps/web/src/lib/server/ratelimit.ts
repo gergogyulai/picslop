@@ -9,8 +9,7 @@ const make = (prefix: string, limiter: ReturnType<typeof Ratelimit.slidingWindow
 export const limits = {
   magicLinkPerEmail: make("ml", Ratelimit.slidingWindow(3, "15 m")),
   // Counted per file, not per request, so bulk uploads use the same budget.
-  uploadBurst: make("up:b", Ratelimit.slidingWindow(60, "10 m")),
-  uploadDaily: make("up:d", Ratelimit.slidingWindow(150, "1 d")),
+  upload: make("up", Ratelimit.slidingWindow(1000, "45 m")),
   vote: make("vote", Ratelimit.slidingWindow(120, "1 m")),
   react: make("react", Ratelimit.slidingWindow(90, "1 m")),
   comment: make("cmt", Ratelimit.slidingWindow(8, "1 m")),
