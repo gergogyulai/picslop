@@ -10,4 +10,9 @@ const ssrInjectMode = process.env.VERCEL ? "resolved-env" : "auto-load";
 
 export default defineConfig({
   plugins: [varlockVitePlugin({ ssrInjectMode }), tailwindcss(), sveltekit()],
+  build: {
+    // heic-to inlines libheif as ~3 MB of wasm. It's only fetched through a dynamic import when
+    // someone uploads a HEIC file, so it can't be split further and doesn't affect page loads.
+    chunkSizeWarningLimit: 3_000,
+  },
 });

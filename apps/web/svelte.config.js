@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import adapter from "@sveltejs/adapter-auto";
+import adapter from "@sveltejs/adapter-vercel";
 import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";
 
 /**
@@ -28,8 +28,8 @@ const config = {
   preprocess: vitePreprocess(),
 
   kit: {
-    // Needs a Node runtime (mongoose, sharp). adapter-auto picks Node on Vercel/Netlify;
-    // swap for @sveltejs/adapter-node when self-hosting.
+    // Deployed on Vercel's Node runtime (sharp needs native bindings, so no edge).
+    // Swap for @sveltejs/adapter-node when self-hosting.
     adapter: adapter(),
     csp: {
       mode: "auto",
