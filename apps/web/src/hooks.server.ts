@@ -3,7 +3,7 @@ import { json, type Handle } from "@sveltejs/kit";
 import { isAuthPath } from "better-auth/svelte-kit";
 
 import { isAdminEmail } from "$lib/server/access";
-import { isPromotedAdmin } from "$lib/server/posts";
+import { sessionFlags } from "$lib/server/blocklist";
 import { auth } from "./services";
 
 const PUBLIC_PATHS = ["/login"];
@@ -24,7 +24,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   // `returnHeaders` gives us the Set-Cookie Better Auth emits when it slides the session's expiry
   // forward. Without passing it on, the browser cookie kept its original max-age and everyone got
   // logged out a fixed time after signing in, no matter how often they visited.
-  const { response: session, headers: authHeaders } = await auth.api.getSession({
+  let { response: session, headers: authHeaders } = await auth.api.getSession({
     headers: event.request.headers,
     returnHeaders: true,
   });
@@ -32,9 +32,16 @@ export const handle: Handle = async ({ event, resolve }) => {
     for (const cookie of authHeaders.getSetCookie()) res.headers.append("set-cookie", cookie);
     return res;
   };
+  const flags = session ? await sessionFlags(session.user.id, session.user.email) : null;
+  if (session && flags?.blocked && !isAdminEmail(session.user.email)) {
+    // Blacklisted while still signed in somewhere: kill every session and carry on as signed out.
+    const ctx = await auth.$context;
+    await ctx.internalAdapter.deleteUserSessions(session.user.id).catch(() => {});
+    session = null;
+  }
   event.locals.user = session?.user ?? null;
   event.locals.session = session?.session ?? null;
-  event.locals.isAdmin = !!session && (isAdminEmail(session.user.email) || (await isPromotedAdmin(session.user.id)));
+  event.locals.isAdmin = !!session && (isAdminEmail(session.user.email) || !!flags?.promotedAdmin);
 
   const path = event.url.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

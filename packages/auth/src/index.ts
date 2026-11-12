@@ -15,6 +15,8 @@ export type AuthConfig = {
 export type AuthDeps = {
   /** Returns true if this email may sign in at all. */
   isEmailAllowed: (email: string) => boolean;
+  /** Blacklisted by an admin: refused at every step, overriding the allowlist. */
+  isEmailBlocked: (email: string) => Promise<boolean>;
   /** Throttle per target address so nobody can flood someone's inbox. Returns false when over the limit. */
   allowMagicLinkFor: (email: string) => Promise<boolean>;
   sendMagicLink: (email: string, url: string) => Promise<void>;
@@ -51,7 +53,7 @@ export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) 
       before: createAuthMiddleware(async (ctx) => {
         if (ctx.path !== "/sign-in/magic-link") return;
         const email = String(ctx.body?.email ?? "").trim().toLowerCase();
-        if (!deps.isEmailAllowed(email)) {
+        if (!deps.isEmailAllowed(email) || (await deps.isEmailBlocked(email))) {
           throw new APIError("FORBIDDEN", { message: NOT_ALLOWED });
         }
         if (!(await deps.allowMagicLinkFor(email))) {
@@ -67,7 +69,7 @@ export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) 
           // Second line of defence: no account can ever be created for a disallowed address.
           before: async (user) => {
             const email = user.email.toLowerCase();
-            if (!deps.isEmailAllowed(email)) {
+            if (!deps.isEmailAllowed(email) || (await deps.isEmailBlocked(email))) {
               throw new APIError("FORBIDDEN", { message: NOT_ALLOWED });
             }
             return { data: { ...user, email, name: user.name || email.split("@")[0] } };
@@ -77,10 +79,10 @@ export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) 
       session: {
         create: {
           // Every sign-in method (magic link, passkey) ends here: an address that has since been
-          // removed from the allowlist can't start new sessions, even with a passkey.
+          // removed from the allowlist, or blacklisted, can't start new sessions, even with a passkey.
           before: async (session, ctx) => {
             const user = await ctx?.context.internalAdapter.findUserById(session.userId);
-            if (!user || !deps.isEmailAllowed(user.email)) {
+            if (!user || !deps.isEmailAllowed(user.email) || (await deps.isEmailBlocked(user.email))) {
               throw new APIError("FORBIDDEN", { message: NOT_ALLOWED });
             }
           },

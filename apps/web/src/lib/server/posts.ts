@@ -32,6 +32,8 @@ export const K = {
   curators: "curators",
   /** User ids promoted to admin from the dashboard (on top of the permanent ADMIN_EMAILS owners). */
   admins: "admins",
+  /** Blacklisted email -> JSON {email, at, by, reason}. Checked at every sign-in step. */
+  blocklist: "blocklist",
 };
 
 export const BOARD: Record<SortId, string> = {

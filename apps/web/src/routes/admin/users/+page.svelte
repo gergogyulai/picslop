@@ -12,6 +12,7 @@
 		{ id: 'staff', label: 'Admins' },
 		{ id: 'curator', label: 'Curators' },
 		{ id: 'banned', label: 'Banned' },
+		{ id: 'blocked', label: 'Blacklisted' },
 		{ id: 'lurkers', label: 'Never posted' }
 	] as const;
 	const SORTS = [
@@ -32,6 +33,7 @@
 		staff: (u) => u.role === 'owner' || u.role === 'admin',
 		curator: (u) => u.role === 'curator',
 		banned: (u) => u.banned,
+		blocked: (u) => u.blocked,
 		lurkers: (u) => u.posts === 0
 	};
 	const by: Record<typeof sort, (a: AdminUser, b: AdminUser) => number> = {
@@ -93,6 +95,89 @@
 		if (!confirm(`Sign @${u.name} out on every device? They'll need a new email link or their passkey to get back in.`)) return;
 		run(u, () => api(`/api/users/${u.id}/sessions`, { method: 'DELETE' }), `Signed @${u.name} out everywhere.`);
 	}
+
+	// --- Blacklist (block an address from ever signing in) -------------------------------------
+
+	function blacklistUser(u: AdminUser) {
+		if (u.blocked) return unblock(u.email);
+		const reason = prompt(
+			`Blacklist ${u.email}? @${u.name} is signed out everywhere and can never sign in again, by email link or passkey. Their account and posts stay.\n\nReason (optional, only admins see it):`
+		);
+		if (reason === null) return;
+		run(u, () => api('/api/admin/blocklist', { body: { email: u.email, reason } }), `Blacklisted ${u.email}.`);
+	}
+
+	let newBlock = $state('');
+	let newReason = $state('');
+	let adding = $state(false);
+	async function addBlock(e: SubmitEvent) {
+		e.preventDefault();
+		adding = true;
+		try {
+			await api('/api/admin/blocklist', { body: { email: newBlock, reason: newReason } });
+			toast(`Blacklisted ${newBlock.trim().toLowerCase()}.`);
+			newBlock = newReason = '';
+			await invalidateAll();
+		} catch (err) {
+			toastError(err);
+		} finally {
+			adding = false;
+		}
+	}
+
+	async function unblock(email: string) {
+		if (!confirm(`Remove ${email} from the blacklist? They'll be able to sign in again if the allowlist lets them.`)) return;
+		try {
+			await api('/api/admin/blocklist', { method: 'DELETE', body: { email } });
+			toast(`${email} can sign in again.`);
+			await invalidateAll();
+		} catch (err) {
+			toastError(err);
+		}
+	}
+
+	// --- Delete -----------------------------------------------------------------------------
+
+	let dialog = $state<HTMLDialogElement>();
+	let doomed = $state<AdminUser | null>(null);
+	let alsoBlock = $state(true);
+	let deleteReason = $state('');
+	let confirmText = $state('');
+	let deleting = $state(false);
+
+	function askDelete(u: AdminUser) {
+		doomed = u;
+		alsoBlock = true;
+		deleteReason = '';
+		confirmText = '';
+		dialog?.showModal();
+	}
+
+	async function doDelete(e: SubmitEvent) {
+		e.preventDefault();
+		const u = doomed;
+		if (!u || confirmText.trim() !== u.name) return;
+		deleting = true;
+		busy = u.id;
+		try {
+			const r = await api<{ posts: number; comments: number; votes: number; reactions: number; blacklisted: boolean }>(
+				`/api/users/${u.id}`,
+				{ method: 'DELETE', body: { blacklist: alsoBlock && !u.blocked, reason: deleteReason } }
+			);
+			dialog?.close();
+			toast(
+				`Deleted @${u.name}: ${r.posts} posts, ${r.comments} comments, ${r.votes} votes, ${r.reactions} reactions${r.blacklisted || u.blocked ? ' · blacklisted' : ''}.`
+			);
+			await invalidateAll();
+		} catch (err) {
+			toastError(err);
+		} finally {
+			deleting = false;
+			busy = null;
+		}
+	}
+
+	const accountFor = $derived(new Map(data.users.map((u) => [u.email.toLowerCase(), u])));
 
 	const editable = (u: AdminUser) => u.role !== 'owner' && u.id !== data.meId;
 	const ago = (t: number) => (t ? timeAgo(t) : '—');
@@ -161,6 +246,7 @@
 								</span>
 							{/if}
 							{#if u.banned}<span class="label bg-accent px-1.5 py-1">banned</span>{/if}
+							{#if u.blocked}<span class="label bg-ink px-1.5 py-1 text-paper">blacklisted</span>{/if}
 							{#if u.passkeys}<span class="label text-muted" title="{u.passkeys} passkey{u.passkeys === 1 ? '' : 's'}">🔑{u.passkeys}</span>{/if}
 						</div>
 					</td>
@@ -177,6 +263,10 @@
 									<button class="btn {u.banned ? '' : 'btn-danger'} px-2 py-1 text-xs" onclick={() => toggleBan(u)} disabled={busy === u.id}>
 										{u.banned ? 'Unban' : 'Ban'}
 									</button>
+									<button class="btn {u.blocked ? '' : 'btn-danger'} px-2 py-1 text-xs" onclick={() => blacklistUser(u)} disabled={busy === u.id} title="Never let this address sign in">
+										{u.blocked ? 'Unblock' : 'Blacklist'}
+									</button>
+									<button class="btn btn-danger px-2 py-1 text-xs" onclick={() => askDelete(u)} disabled={busy === u.id}>Delete…</button>
 								{/if}
 							</div>
 						{/if}
@@ -200,6 +290,7 @@
 				</div>
 				<div class="flex shrink-0 gap-1">
 					{#if u.banned}<span class="label bg-accent px-1.5 py-0.5">banned</span>{/if}
+					{#if u.blocked}<span class="label bg-ink px-1.5 py-0.5 text-paper">blacklisted</span>{/if}
 					{#if !editable(u)}<span class="label border-2 border-ink px-1.5 py-0.5 {ROLE_STYLE[u.role]}">{ROLE_LABEL[u.role]}</span>{/if}
 				</div>
 			</div>
@@ -224,6 +315,10 @@
 						<button class="btn {u.banned ? '' : 'btn-danger'} px-2.5 py-1.5 text-xs" onclick={() => toggleBan(u)} disabled={busy === u.id}>
 							{u.banned ? 'Unban' : 'Ban'}
 						</button>
+						<button class="btn {u.blocked ? '' : 'btn-danger'} px-2.5 py-1.5 text-xs" onclick={() => blacklistUser(u)} disabled={busy === u.id}>
+							{u.blocked ? 'Unblock' : 'Blacklist'}
+						</button>
+						<button class="btn btn-danger px-2.5 py-1.5 text-xs" onclick={() => askDelete(u)} disabled={busy === u.id}>Delete…</button>
 					{/if}
 				</div>
 			{/if}
@@ -232,3 +327,87 @@
 		<li class="py-10 text-center text-muted">No users match.</li>
 	{/each}
 </ul>
+
+<!-- Blacklist: addresses that can never sign in, with or without an account -->
+<section class="box mt-8 p-4 md:p-5">
+	<div class="flex flex-wrap items-baseline justify-between gap-2">
+		<h2 class="display text-xl md:text-2xl">Blacklist</h2>
+		<p class="label text-muted">{data.blocked.length} {data.blocked.length === 1 ? 'address' : 'addresses'}</p>
+	</div>
+	<p class="mt-2 max-w-prose text-sm text-muted">
+		These addresses can't request a sign-in link, can't get an account, and can't sign in with a passkey. Anyone already
+		signed in with one is kicked out on their next request. This overrides the allowlist. You can add addresses that haven't signed up yet.
+	</p>
+
+	<form class="mt-4 flex flex-col gap-2 md:flex-row" onsubmit={addBlock}>
+		<input class="field md:max-w-xs" type="email" required placeholder="someone@example.edu" bind:value={newBlock} aria-label="Email to blacklist" />
+		<input class="field md:max-w-sm" type="text" maxlength="200" placeholder="Reason (optional)" bind:value={newReason} aria-label="Reason" />
+		<button class="btn btn-ink shrink-0" disabled={adding || !newBlock.trim()}>{adding ? 'Adding…' : 'Blacklist'}</button>
+	</form>
+
+	{#if data.blocked.length}
+		<ul class="mt-4 divide-y divide-line border-t-2 border-ink">
+			{#each data.blocked as b (b.email)}
+				{@const acct = accountFor.get(b.email)}
+				<li class="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5">
+					<div class="min-w-0 flex-1">
+						<p class="truncate font-mono text-sm">{b.email}</p>
+						<p class="truncate text-xs text-muted">
+							{b.at ? timeAgo(b.at) : ''}{b.by ? ` by @${b.by}` : ''}{b.reason ? ` · “${b.reason}”` : ''}
+							{#if acct} · account <a class="underline" href="/u/{acct.id}">@{acct.name}</a>{:else} · no account{/if}
+						</p>
+					</div>
+					<button class="btn px-2.5 py-1 text-xs" onclick={() => unblock(b.email)}>Unblock</button>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+</section>
+
+<dialog
+	bind:this={dialog}
+	class="box m-auto w-[min(32rem,calc(100vw-2rem))] p-0 backdrop:bg-ink/50"
+	onclose={() => !deleting && (doomed = null)}
+	oncancel={(e) => deleting && e.preventDefault()}
+>
+	{#if doomed}
+		<form class="p-5" onsubmit={doDelete}>
+			<p class="label text-danger">permanent</p>
+			<h2 class="display mt-1.5 text-2xl">Delete @{doomed.name}</h2>
+			<p class="mt-1 font-mono text-xs text-muted">{doomed.email}</p>
+			<p class="mt-4 text-sm">This removes, with no undo:</p>
+			<ul class="mt-1.5 list-disc pl-5 text-sm">
+				<li><b>{doomed.posts}</b> {doomed.posts === 1 ? 'post' : 'posts'} with their files{doomed.picked ? `, ${doomed.picked} of them picked` : ''}</li>
+				<li>every comment, vote and reaction they left on anyone's post</li>
+				<li>their account, sign-in methods ({doomed.passkeys} {doomed.passkeys === 1 ? 'passkey' : 'passkeys'}), roles and sessions</li>
+			</ul>
+
+			<label class="mt-4 flex items-start gap-2.5 border-2 border-ink bg-paper-2 p-3 text-sm">
+				<input type="checkbox" class="mt-0.5 h-4 w-4 accent-[var(--color-ink)]" checked={alsoBlock || doomed.blocked} onchange={(e) => (alsoBlock = e.currentTarget.checked)} disabled={doomed.blocked} />
+				<span>
+					<b>Blacklist {doomed.email}</b>
+					<span class="block text-muted">
+						{doomed.blocked
+							? 'Already blacklisted; it stays that way.'
+							: 'Without this they can sign up again with a fresh, empty account if the allowlist lets them.'}
+					</span>
+				</span>
+			</label>
+			{#if alsoBlock && !doomed.blocked}
+				<input class="field mt-2" type="text" maxlength="200" placeholder="Reason (optional)" bind:value={deleteReason} />
+			{/if}
+
+			<label class="mt-4 block text-sm">
+				Type <b class="font-mono">{doomed.name}</b> to confirm
+				<input class="field mt-1.5" autocomplete="off" spellcheck="false" bind:value={confirmText} disabled={deleting} />
+			</label>
+
+			<div class="mt-5 flex justify-end gap-2">
+				<button type="button" class="btn" onclick={() => dialog?.close()} disabled={deleting}>Cancel</button>
+				<button class="btn btn-danger" disabled={deleting || confirmText.trim() !== doomed.name}>
+					{deleting ? 'Deleting… this can take a minute' : 'Delete forever'}
+				</button>
+			</div>
+		</form>
+	{/if}
+</dialog>
