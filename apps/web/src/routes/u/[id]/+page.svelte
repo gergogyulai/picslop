@@ -2,7 +2,6 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api';
-	import AdminExport from '$lib/components/AdminExport.svelte';
 	import Masonry from '$lib/components/Masonry.svelte';
 	import PasskeyManager from '$lib/components/PasskeyManager.svelte';
 	import type { PostView } from '$lib/constants';
@@ -85,6 +84,9 @@
 			{#if isAdmin && !data.isMe}
 				<button class="btn" onclick={toggleBan}>{data.banned ? 'Unban' : 'Ban'}</button>
 			{/if}
+			{#if isAdmin && data.isMe}
+				<a class="btn bg-lime" href="/admin">Admin dashboard</a>
+			{/if}
 			{#if data.isMe}
 				<!-- The header's sign-out button is hidden on phones -->
 				<button class="btn ml-auto sm:hidden" onclick={signOut}>Sign out</button>
@@ -93,7 +95,6 @@
 	</section>
 
 	{#if data.isMe}<PasskeyManager />{/if}
-	{#if data.isMe && isAdmin}<AdminExport />{/if}
 
 	<div class="mb-4 h-[3px] bg-ink md:mb-6"></div>
 

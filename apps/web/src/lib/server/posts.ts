@@ -30,6 +30,8 @@ export const K = {
   banned: "banned",
   /** User ids (besides admins) allowed to cherrypick posts onto the Picked board. */
   curators: "curators",
+  /** User ids promoted to admin from the dashboard (on top of the permanent ADMIN_EMAILS owners). */
+  admins: "admins",
 };
 
 export const BOARD: Record<SortId, string> = {
@@ -469,4 +471,17 @@ export async function isCurator(userId: string) {
 export async function setCurator(userId: string, curator: boolean) {
   if (curator) await redis.sadd(K.curators, userId);
   else await redis.srem(K.curators, userId);
+}
+
+// ---------------------------------------------------------------------------
+// Promoted admins (ADMIN_EMAILS owners are admins regardless and can't be demoted)
+// ---------------------------------------------------------------------------
+
+export async function isPromotedAdmin(userId: string) {
+  return Number(await redis.sismember(K.admins, userId)) === 1;
+}
+
+export async function setPromotedAdmin(userId: string, admin: boolean) {
+  if (admin) await redis.sadd(K.admins, userId);
+  else await redis.srem(K.admins, userId);
 }

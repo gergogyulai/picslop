@@ -8,3 +8,7 @@ export async function createDb(env: DatabaseConfig) {
 }
 
 export type Database = Awaited<ReturnType<typeof createDb>>;
+
+/** The driver's ObjectId, for apps that query the auth collections directly. */
+export const ObjectId = mongoose.mongo.ObjectId;
+export type ObjectId = InstanceType<typeof mongoose.mongo.ObjectId>;

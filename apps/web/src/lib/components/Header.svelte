@@ -31,7 +31,7 @@
 		<a href="/" class="group flex items-baseline gap-2" aria-label="picslop home">
 			<span class="display text-[1.7rem] transition-transform group-hover:-rotate-2 md:text-[2.3rem]">Pic<span class="text-accent">slop</span></span>
 		</a>
-		{#if isAdmin}<span class="label bg-lime px-1 text-[0.6rem] sm:hidden">admin</span>{/if}
+		{#if isAdmin}<a href="/admin" class="label border-2 border-ink bg-lime px-1.5 py-0.5 text-[0.6rem] sm:hidden">admin ›</a>{/if}
 
 		<!-- Phones use the bottom tab bar instead -->
 		<nav class="ml-auto hidden items-center gap-2 sm:flex md:gap-3">
@@ -39,9 +39,11 @@
 				<span aria-hidden="true" class="text-lg leading-none">+</span>
 				<span>Upload</span>
 			</a>
+			{#if isAdmin}
+				<a href="/admin" class="btn bg-lime!" aria-current={page.url.pathname.startsWith('/admin') ? 'page' : undefined}>Admin</a>
+			{/if}
 			<a href="/u/{user.id}" class="btn max-w-[30vw] truncate" title={user.email}>
 				<span class="truncate normal-case">{user.name}</span>
-				{#if isAdmin}<span class="label bg-lime px-1 text-[0.6rem]">admin</span>{/if}
 			</a>
 			<button class="btn px-3" onclick={signOut} title="Sign out" aria-label="Sign out">
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>
