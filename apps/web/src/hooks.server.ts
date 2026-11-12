@@ -3,6 +3,7 @@ import { json, type Handle } from "@sveltejs/kit";
 import { isAuthPath } from "better-auth/svelte-kit";
 
 import { isAdminEmail } from "$lib/server/access";
+import { isPromotedAdmin } from "$lib/server/posts";
 import { auth } from "./services";
 
 const PUBLIC_PATHS = ["/login"];
@@ -33,7 +34,7 @@ export const handle: Handle = async ({ event, resolve }) => {
   };
   event.locals.user = session?.user ?? null;
   event.locals.session = session?.session ?? null;
-  event.locals.isAdmin = isAdminEmail(session?.user.email);
+  event.locals.isAdmin = !!session && (isAdminEmail(session.user.email) || (await isPromotedAdmin(session.user.id)));
 
   const path = event.url.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
