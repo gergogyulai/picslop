@@ -1,6 +1,9 @@
 <script lang="ts">
-	import { authClient } from '$lib/auth-client';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { authClient, passkeysSupported } from '$lib/auth-client';
 	import Turnstile from '$lib/components/Turnstile.svelte';
+	import { errorCode, wasCancelled } from '$lib/passkeys';
 
 	let { data } = $props();
 
@@ -36,6 +39,45 @@
 	const linkError = $derived(
 		data.error ? (linkErrors[data.error] ?? 'Sign-in failed. Please request a new link.') : null
 	);
+
+	let canPasskey = $state(false);
+	let passkeyBusy = $state(false);
+
+	onMount(() => {
+		canPasskey = passkeysSupported();
+		armAutofill();
+	});
+
+	/** Conditional UI: saved passkeys show up in the email field's autofill suggestions. */
+	async function armAutofill() {
+		if (!passkeysSupported()) return;
+		if (!(await PublicKeyCredential.isConditionalMediationAvailable?.().catch(() => false))) return;
+		void signInWithPasskey(true);
+	}
+
+	async function signInWithPasskey(autoFill = false) {
+		if (!autoFill) {
+			passkeyBusy = true;
+			error = null;
+		}
+		const { error: err } = await authClient.signIn.passkey({ autoFill });
+		if (!autoFill) passkeyBusy = false;
+		if (!err) {
+			// The login page's load sees the new session and forwards to `next`.
+			await goto(data.next, { invalidateAll: true, replaceState: true });
+			return;
+		}
+		if (wasCancelled(err)) {
+			// The explicit button aborts the autofill request; put autofill back once it's done.
+			if (!autoFill) armAutofill();
+			return;
+		}
+		error =
+			errorCode(err) === 'PASSKEY_NOT_FOUND'
+				? "That passkey isn't linked to an account here anymore. Use an email link instead."
+				: (err.message ?? 'Passkey sign-in failed. Use an email link instead.');
+		if (autoFill) armAutofill();
+	}
 
 	async function submit(e: SubmitEvent) {
 		e.preventDefault();
@@ -137,7 +179,7 @@
 								class="min-w-0 flex-1 bg-transparent px-3 py-2.5 outline-none"
 								type="text"
 								name="email"
-								autocomplete="username"
+								autocomplete="username webauthn"
 								inputmode="email"
 								autocapitalize="none"
 								autocorrect="off"
@@ -170,7 +212,26 @@
 						{sending ? 'Sending…' : 'Email me a link →'}
 					</button>
 
-					<p class="text-sm text-muted">No passwords. Only approved school addresses can get in.</p>
+					{#if canPasskey}
+						<div class="flex items-center gap-3" aria-hidden="true">
+							<span class="h-[2px] flex-1 bg-line"></span>
+							<span class="label text-muted">or</span>
+							<span class="h-[2px] flex-1 bg-line"></span>
+						</div>
+						<button
+							type="button"
+							class="btn w-full py-3 text-base"
+							onclick={() => signInWithPasskey()}
+							disabled={passkeyBusy}
+						>
+							{passkeyBusy ? 'Waiting for passkey…' : 'Sign in with a passkey'}
+						</button>
+					{/if}
+
+					<p class="text-sm text-muted">
+						No passwords. Only approved school addresses can get in. Add a passkey from your profile after signing
+						in.
+					</p>
 				</form>
 			{/if}
 		</div>

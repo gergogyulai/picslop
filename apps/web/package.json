@@ -14,6 +14,7 @@
     "env:generate": "varlock codegen"
   },
   "dependencies": {
+    "@better-auth/passkey": "catalog:",
     "@picslop/auth": "workspace:*",
     "@picslop/db": "workspace:*",
     "@upstash/ratelimit": "^2.2.0",

@@ -65,9 +65,29 @@ const verificationSchema = new Schema(
 );
 verificationSchema.index({ identifier: 1 });
 
+const passkeySchema = new Schema(
+  {
+    _id: { type: ObjectId, auto: true },
+    name: { type: String },
+    publicKey: { type: String, required: true },
+    userId: { type: ObjectId, ref: "User", required: true },
+    credentialID: { type: String, required: true },
+    counter: { type: Number, required: true },
+    deviceType: { type: String, required: true },
+    backedUp: { type: Boolean, required: true },
+    transports: { type: String },
+    aaguid: { type: String },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { collection: "passkey" },
+);
+passkeySchema.index({ userId: 1 });
+passkeySchema.index({ credentialID: 1 });
+
 const User = model("User", userSchema);
 const Session = model("Session", sessionSchema);
 const Account = model("Account", accountSchema);
 const Verification = model("Verification", verificationSchema);
+const Passkey = model("Passkey", passkeySchema);
 
-export { User, Session, Account, Verification };
+export { User, Session, Account, Verification, Passkey };

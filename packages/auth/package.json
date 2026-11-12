@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@picslop/db": "workspace:*",
+    "@better-auth/passkey": "catalog:",
     "better-auth": "catalog:",
     "mongodb": "^7.6.0",
     "zod": "catalog:"

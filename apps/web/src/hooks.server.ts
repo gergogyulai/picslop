@@ -20,7 +20,17 @@ export const handle: Handle = async ({ event, resolve }) => {
   // Better Auth's own endpoints (magic link send/verify, session, sign-out).
   if (isAuthPath(event.url.toString(), auth.options)) return auth.handler(event.request);
 
-  const session = await auth.api.getSession({ headers: event.request.headers });
+  // `returnHeaders` gives us the Set-Cookie Better Auth emits when it slides the session's expiry
+  // forward. Without passing it on, the browser cookie kept its original max-age and everyone got
+  // logged out a fixed time after signing in, no matter how often they visited.
+  const { response: session, headers: authHeaders } = await auth.api.getSession({
+    headers: event.request.headers,
+    returnHeaders: true,
+  });
+  const withAuthCookies = (res: Response) => {
+    for (const cookie of authHeaders.getSetCookie()) res.headers.append("set-cookie", cookie);
+    return res;
+  };
   event.locals.user = session?.user ?? null;
   event.locals.session = session?.session ?? null;
   event.locals.isAdmin = isAdminEmail(session?.user.email);
@@ -30,9 +40,9 @@ export const handle: Handle = async ({ event, resolve }) => {
 
   // Everything except the login page requires a session.
   if (!session && !isPublic) {
-    if (path.startsWith("/api/")) return json({ message: "Sign in required." }, { status: 401 });
+    if (path.startsWith("/api/")) return withAuthCookies(json({ message: "Sign in required." }, { status: 401 }));
     const next = path === "/" ? "" : `?next=${encodeURIComponent(path + event.url.search)}`;
-    return new Response(null, { status: 303, headers: { location: `/login${next}` } });
+    return withAuthCookies(new Response(null, { status: 303, headers: { location: `/login${next}` } }));
   }
 
   // CSRF: state-changing API calls must come from our own pages.
@@ -42,7 +52,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  const response = await resolve(event);
+  const response = withAuthCookies(await resolve(event));
   for (const [k, v] of Object.entries(securityHeaders)) response.headers.set(k, v);
   // Nothing here is public; keep shared caches out of it.
   if (!response.headers.has("cache-control")) response.headers.set("cache-control", "private, no-store");

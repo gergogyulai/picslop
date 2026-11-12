@@ -1,3 +1,4 @@
+import { passkey } from "@better-auth/passkey";
 import type { Database } from "@picslop/db";
 import { betterAuth } from "better-auth";
 import type { SecondaryStorage } from "better-auth";
@@ -22,6 +23,8 @@ export type AuthDeps = {
 
 const NOT_ALLOWED = "This email address is not allowed to sign in.";
 
+const DAY = 60 * 60 * 24;
+
 export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) {
   return betterAuth({
     database: mongodbAdapter(database),
@@ -31,8 +34,12 @@ export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) 
     baseURL: env.BETTER_AUTH_URL,
     emailAndPassword: { enabled: false },
     session: {
-      expiresIn: 60 * 60 * 24 * 30,
-      updateAge: 60 * 60 * 24,
+      // Sliding window: any visit after `updateAge` pushes expiry out another `expiresIn`,
+      // so only people who stay away for 90 days have to sign in again.
+      expiresIn: 90 * DAY,
+      updateAge: DAY,
+      // Adding a passkey needs a session younger than this (i.e. a recent email-link sign-in).
+      freshAge: DAY,
     },
     rateLimit: {
       enabled: true,
@@ -67,6 +74,18 @@ export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) 
           },
         },
       },
+      session: {
+        create: {
+          // Every sign-in method (magic link, passkey) ends here: an address that has since been
+          // removed from the allowlist can't start new sessions, even with a passkey.
+          before: async (session, ctx) => {
+            const user = await ctx?.context.internalAdapter.findUserById(session.userId);
+            if (!user || !deps.isEmailAllowed(user.email)) {
+              throw new APIError("FORBIDDEN", { message: NOT_ALLOWED });
+            }
+          },
+        },
+      },
     },
     plugins: [
       magicLink({
@@ -82,6 +101,17 @@ export function createAuth(env: AuthConfig, database: Database, deps: AuthDeps) 
               message: "We couldn't send the sign-in email. Please try again later.",
             });
           }
+        },
+      }),
+      // Passkeys can only be added to an existing (email-verified) account while signed in;
+      // there is no passkey-first sign-up.
+      passkey({
+        rpName: "picslop",
+        rpID: new URL(env.BETTER_AUTH_URL).hostname,
+        origin: new URL(env.BETTER_AUTH_URL).origin,
+        authenticatorSelection: {
+          residentKey: "required",
+          userVerification: "preferred",
         },
       }),
       captcha({

@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import Header from '$lib/components/Header.svelte';
 	import MobileNav from '$lib/components/MobileNav.svelte';
+	import PasskeyNudge from '$lib/components/PasskeyNudge.svelte';
 	import Toasts from '$lib/components/Toasts.svelte';
 
 	let { data, children } = $props();
@@ -37,6 +38,7 @@
 
 <!-- On phones, leave room for the bottom tab bar (and the home indicator). -->
 <main class={data.user ? 'max-sm:pb-[calc(4rem+env(safe-area-inset-bottom))]' : ''}>
+	{#if data.user && data.offerPasskey}<PasskeyNudge />{/if}
 	{@render children()}
 </main>
 
