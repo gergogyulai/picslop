@@ -37,7 +37,7 @@
 {/if}
 
 <!-- On phones, leave room for the bottom tab bar (and the home indicator). -->
-<main class={data.user ? 'max-sm:pb-[calc(4rem+env(safe-area-inset-bottom))]' : ''}>
+<main class={data.user ? 'max-sm:pb-(--nav-space)' : ''}>
 	{#if data.user && data.offerPasskey}<PasskeyNudge />{/if}
 	{@render children()}
 </main>

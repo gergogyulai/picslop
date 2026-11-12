@@ -448,7 +448,7 @@
 		<!-- Phones: the post button stays reachable above the tab bar however long the list gets -->
 		{#if items.length}
 			<div
-				class="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 -mx-4 space-y-2 border-t-2 border-ink bg-paper/95 px-4 py-3 backdrop-blur-[2px] sm:hidden"
+				class="sticky bottom-[calc(var(--nav-space)-0.25rem)] z-30 -mx-4 space-y-2 border-t-2 border-ink bg-paper/95 px-4 py-3 backdrop-blur-[2px] sm:hidden"
 			>
 				{#if busy || inFlight.length}
 					<div class="flex items-center gap-3" aria-live="polite">
