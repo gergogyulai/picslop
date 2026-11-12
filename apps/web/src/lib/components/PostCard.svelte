@@ -37,6 +37,14 @@
 					{formatDuration(post.duration)}
 				</span>
 			{/if}
+			{#if post.picked}
+				<span
+					class="label absolute top-2 left-2 -rotate-3 border-2 border-ink bg-lime px-1.5 py-0.5 shadow-hard-sm"
+					title={post.pickedBy ? `Picked by @${post.pickedBy}` : 'Picked'}
+				>
+					★ picked
+				</span>
+			{/if}
 			{#if rank !== undefined && rank < 3}
 				<span
 					class="display absolute -right-1 -top-1 grid h-14 w-14 rotate-6 place-items-center border-2 border-ink text-2xl shadow-hard-sm {rank === 0 ? 'bg-lime' : 'bg-card'}"

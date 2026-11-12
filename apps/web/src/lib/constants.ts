@@ -72,7 +72,7 @@ export const SORTS = [
   { id: "hot", label: "Hot" },
   { id: "top", label: "Top" },
   { id: "new", label: "New" },
-  { id: "discussed", label: "Most discussed" },
+  { id: "picked", label: "Picked" },
 ] as const;
 
 export type SortId = (typeof SORTS)[number]["id"];
@@ -96,6 +96,9 @@ export type PostView = {
   thumbUrl: string;
   mediaUrl: string;
   myVote: -1 | 0 | 1;
+  /** Cherrypicked onto the Picked board by an admin or curator. */
+  picked: boolean;
+  pickedBy: string;
 };
 
 export type PostDetail = PostView & {

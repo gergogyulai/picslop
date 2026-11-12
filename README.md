@@ -6,12 +6,12 @@
   <br>
 </div>
 
-picslop is a self-hosted image and video board gated to your own email domain. Sign-in is magic-link only, no passwords — post images or short clips, vote, comment in threads, react with emoji, and sort by hot, top, new, or most discussed.
+picslop is a self-hosted image and video board gated to your own email domain. Sign-in is magic-link only, no passwords — post images or short clips, vote, comment in threads, react with emoji, and sort by hot, top, new, or picked — a board admins and curators cherrypick by hand.
 
 - 🔗 Passwordless auth via magic link (Better Auth), domain-restricted sign-up
 - 🖼️ Images and video, with HEIC→JPEG conversion and in-browser video validation
 - ⬆️⬇️ Voting, nested comments, and emoji reactions
-- 🔥 Hot / top / new / most-discussed sorting
+- 🔥 Hot / top / new / picked boards; admins designate curators who hand-pick posts
 - 🪣 Media stored in Cloudflare R2 via presigned uploads
 - 🛡️ Cloudflare Turnstile on sign-in, Redis-backed rate limiting, admin ban tools
 - 📱 Installable as a PWA

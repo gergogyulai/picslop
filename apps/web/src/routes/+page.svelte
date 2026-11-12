@@ -55,7 +55,7 @@
 		hot: 'Rising right now',
 		top: 'All-time leaderboard',
 		new: 'Fresh off the press',
-		discussed: 'Where the comments are'
+		picked: 'Hand-picked by the curators'
 	};
 </script>
 
@@ -104,9 +104,14 @@
 
 	{#if posts.length === 0}
 		<div class="mx-auto my-16 max-w-md text-center">
-			<p class="display text-4xl">Nothing here yet</p>
-			<p class="mt-3 text-muted">Be the first to put something on the wall.</p>
-			<a href="/upload" class="btn btn-accent mt-6">Upload something</a>
+			<p class="display text-4xl">{data.sort === 'picked' ? 'No picks yet' : 'Nothing here yet'}</p>
+			{#if data.sort === 'picked'}
+				<p class="mt-3 text-muted">Curators haven’t cherrypicked anything yet. Check back soon.</p>
+				<a href="/" class="btn mt-6">Browse what’s hot</a>
+			{:else}
+				<p class="mt-3 text-muted">Be the first to put something on the wall.</p>
+				<a href="/upload" class="btn btn-accent mt-6">Upload something</a>
+			{/if}
 		</div>
 	{:else}
 		{#key data.sort}

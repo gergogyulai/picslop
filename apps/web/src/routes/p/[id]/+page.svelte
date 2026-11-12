@@ -170,6 +170,24 @@
 		}
 	}
 
+	let picking = $state(false);
+	async function togglePick() {
+		if (picking) return;
+		picking = true;
+		try {
+			const res = await api<{ picked: boolean; pickedBy: string }>(`/api/posts/${post.id}/pick`, {
+				body: { picked: !post.picked }
+			});
+			post.picked = res.picked;
+			post.pickedBy = res.pickedBy;
+			toast(res.picked ? 'Picked — it’s on the Picked board.' : 'Removed from the Picked board.');
+		} catch (e) {
+			toastError(e);
+		} finally {
+			picking = false;
+		}
+	}
+
 	async function toggleBan() {
 		const next = !data.authorBanned;
 		if (!confirm(next ? `Ban @${post.authorName} from posting, voting and commenting?` : `Lift the ban on @${post.authorName}?`)) return;
@@ -239,6 +257,11 @@
 					<a href="/u/{post.authorId}" class="normal-case text-ink hover:underline">@{post.authorName}</a>
 					<time datetime={new Date(post.createdAt).toISOString()}>{timeAgo(post.createdAt)}</time>
 					{#if post.kind === 'video'}<span>video · {formatDuration(post.duration)}</span>{/if}
+					{#if post.picked}
+						<a href="/?sort=picked" class="bg-lime px-1.5 py-0.5 text-ink hover:underline" title="On the Picked board">
+							★ picked{post.pickedBy ? ` by @${post.pickedBy}` : ''}
+						</a>
+					{/if}
 				</div>
 
 				{#if post.caption}
@@ -282,8 +305,13 @@
 					<EmojiPicker onpick={pick} />
 				</div>
 
-				{#if data.canDelete || isAdmin}
+				{#if data.canDelete || data.canPick || isAdmin}
 					<div class="mt-6 flex flex-wrap gap-2 border-t-2 border-dashed border-line pt-4">
+						{#if data.canPick}
+							<button class="btn {post.picked ? '' : 'btn-ink'}" onclick={togglePick} disabled={picking} aria-pressed={post.picked}>
+								{post.picked ? 'Unpick' : '★ Pick'}
+							</button>
+						{/if}
 						{#if data.canDelete}
 							<button class="btn btn-danger" onclick={removePost}>Delete post</button>
 						{/if}

@@ -36,6 +36,18 @@
 		}
 	}
 
+	async function toggleCurator() {
+		const next = !data.curator;
+		if (!confirm(next ? `Make @${data.name ?? 'this user'} a curator? They'll be able to pick posts for the Picked board.` : `Remove @${data.name ?? 'this user'} as a curator?`)) return;
+		try {
+			await api(`/api/users/${data.userId}/curator`, { body: { curator: next } });
+			toast(next ? 'Curator added.' : 'Curator removed.');
+			await invalidateAll();
+		} catch (e) {
+			toastError(e);
+		}
+	}
+
 	async function toggleBan() {
 		try {
 			await api(`/api/users/${data.userId}/ban`, { body: { banned: !data.banned } });
@@ -54,6 +66,9 @@
 		<div class="min-w-0">
 			<p class="label text-muted">{data.isMe ? 'your uploads' : 'uploads by'}</p>
 			<h1 class="display mt-1.5 truncate text-[2.2rem] normal-case md:mt-2 md:text-[4.5rem]">@{data.name ?? 'unknown'}</h1>
+			{#if data.curator}
+				<p class="label mt-3 mr-2 inline-block bg-lime px-2 py-1">★ curator</p>
+			{/if}
 			{#if data.banned}
 				<p class="label mt-3 inline-block bg-accent px-2 py-1">
 					{data.isMe ? 'Your account is restricted: you can browse but not post, vote or comment.' : 'banned'}
@@ -63,6 +78,9 @@
 		<div class="flex flex-wrap items-center gap-2 md:gap-3">
 			<span class="box px-3 py-2 font-mono text-sm"><b>{posts.length}{nextOffset !== null ? '+' : ''}</b> posts</span>
 			<span class="box px-3 py-2 font-mono text-sm"><b>{score}</b> points</span>
+			{#if isAdmin}
+				<button class="btn" onclick={toggleCurator}>{data.curator ? 'Remove curator' : 'Make curator'}</button>
+			{/if}
 			{#if isAdmin && !data.isMe}
 				<button class="btn" onclick={toggleBan}>{data.banned ? 'Unban' : 'Ban'}</button>
 			{/if}

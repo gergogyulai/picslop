@@ -15,6 +15,7 @@ export const limits = {
   comment: make("cmt", Ratelimit.slidingWindow(8, "1 m")),
   commentDaily: make("cmt:d", Ratelimit.slidingWindow(300, "1 d")),
   read: make("read", Ratelimit.slidingWindow(300, "1 m")),
+  pick: make("pick", Ratelimit.slidingWindow(60, "1 m")),
 };
 
 /** Throws 429 if any of the given limiters rejects this identifier. */
