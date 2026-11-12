@@ -28,13 +28,16 @@ export const K = {
   upload: (id: string) => `upload:${id}`,
   userPosts: (uid: string) => `user:${uid}:posts`,
   banned: "banned",
+  /** User ids (besides admins) allowed to cherrypick posts onto the Picked board. */
+  curators: "curators",
 };
 
 export const BOARD: Record<SortId, string> = {
   new: "posts:new",
   top: "posts:top",
   hot: "posts:hot",
-  discussed: "posts:discussed",
+  /** Cherrypicked by an admin or curator; scored by pick time. */
+  picked: "posts:picked",
 };
 
 const ID_ALPHABET = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -108,21 +111,19 @@ if cur == ',' then redis.call('HDEL', KEYS[3], ARGV[1]) else redis.call('HSET', 
 return {on, tonumber(redis.call('HGET', KEYS[2], ARGV[2]) or '0')}
 `);
 
-// KEYS: post, post's comment zset, comment, posts:discussed, parent comment (= comment key when top-level)
+// KEYS: post, post's comment zset, comment, parent comment (= comment key when top-level)
 // ARGV: cid, postId, authorId, authorName, body, createdAt, parentId ('' = top-level), depth
 // Returns the post's new comment count, false if the post is gone, -1 if the parent is gone.
 const addCommentScript = redis.createScript<number | null>(`
 if redis.call('EXISTS', KEYS[1]) == 0 then return false end
 if ARGV[7] ~= '' then
-  if redis.call('HGET', KEYS[5], 'postId') ~= ARGV[2] or redis.call('HGET', KEYS[5], 'deleted') == '1' then return -1 end
-  redis.call('HINCRBY', KEYS[5], 'replies', 1)
+  if redis.call('HGET', KEYS[4], 'postId') ~= ARGV[2] or redis.call('HGET', KEYS[4], 'deleted') == '1' then return -1 end
+  redis.call('HINCRBY', KEYS[4], 'replies', 1)
 end
 redis.call('HSET', KEYS[3], 'id', ARGV[1], 'postId', ARGV[2], 'authorId', ARGV[3], 'authorName', ARGV[4],
   'body', ARGV[5], 'createdAt', ARGV[6], 'parentId', ARGV[7], 'depth', ARGV[8], 'replies', 0)
 redis.call('ZADD', KEYS[2], ARGV[6], ARGV[1])
-local n = redis.call('HINCRBY', KEYS[1], 'comments', 1)
-redis.call('ZADD', KEYS[4], n, ARGV[2])
-return n
+return redis.call('HINCRBY', KEYS[1], 'comments', 1)
 `);
 
 // Same KEYS as above; ARGV: cid, postId, hasParent ('1'/'0').
@@ -135,8 +136,7 @@ local replies = tonumber(redis.call('HGET', KEYS[3], 'replies') or '0')
 local wasDeleted = redis.call('HGET', KEYS[3], 'deleted') == '1'
 local function uncount()
   if redis.call('EXISTS', KEYS[1]) == 1 then
-    local n = redis.call('HINCRBY', KEYS[1], 'comments', -1)
-    redis.call('ZADD', KEYS[4], n, ARGV[2])
+    redis.call('HINCRBY', KEYS[1], 'comments', -1)
   end
 end
 if replies > 0 then
@@ -149,11 +149,27 @@ end
 redis.call('ZREM', KEYS[2], ARGV[1])
 redis.call('DEL', KEYS[3])
 if not wasDeleted then uncount() end
-if ARGV[3] == '1' and redis.call('EXISTS', KEYS[5]) == 1 then
-  local left = tonumber(redis.call('HINCRBY', KEYS[5], 'replies', -1))
-  if left <= 0 and redis.call('HGET', KEYS[5], 'deleted') == '1' then return 2 end
+if ARGV[3] == '1' and redis.call('EXISTS', KEYS[4]) == 1 then
+  local left = tonumber(redis.call('HINCRBY', KEYS[4], 'replies', -1))
+  if left <= 0 and redis.call('HGET', KEYS[4], 'deleted') == '1' then return 2 end
 end
 return 1
+`);
+
+// KEYS: post, posts:picked. ARGV: id, '1' (pick) / '0' (unpick), pickedAt, picker's display name.
+// Re-picking keeps the original pick time and picker. Returns the picker's name ('' when unpicked), false if gone.
+const pickScript = redis.createScript<string | null>(`
+if redis.call('EXISTS', KEYS[1]) == 0 then return false end
+if ARGV[2] == '1' then
+  if redis.call('ZSCORE', KEYS[2], ARGV[1]) == false then
+    redis.call('ZADD', KEYS[2], ARGV[3], ARGV[1])
+    redis.call('HSET', KEYS[1], 'pickedBy', ARGV[4], 'pickedAt', ARGV[3])
+  end
+  return redis.call('HGET', KEYS[1], 'pickedBy') or ARGV[4]
+end
+redis.call('ZREM', KEYS[2], ARGV[1])
+redis.call('HDEL', KEYS[1], 'pickedBy', 'pickedAt')
+return ''
 `);
 
 // ---------------------------------------------------------------------------
@@ -176,6 +192,8 @@ export type PostRecord = {
   down: number;
   score: number;
   comments: number;
+  /** Display name of the admin/curator who picked it; empty when not picked. */
+  pickedBy: string;
 };
 
 /**
@@ -214,23 +232,24 @@ function parsePost(raw: unknown): PostRecord | null {
     down: n("down"),
     score: n("score"),
     comments: n("comments"),
+    pickedBy: h.pickedBy ?? "",
   };
 }
 
 async function toView(p: PostRecord, myVote: number): Promise<PostView> {
   const [thumbUrl, mediaUrl] = await Promise.all([presignGet(p.thumbKey), presignGet(p.mediaKey)]);
   const { mediaKey: _m, thumbKey: _t, ...rest } = p;
-  return { ...rest, thumbUrl, mediaUrl, myVote: myVote === 1 ? 1 : myVote === -1 ? -1 : 0 };
+  return { ...rest, picked: !!p.pickedBy, thumbUrl, mediaUrl, myVote: myVote === 1 ? 1 : myVote === -1 ? -1 : 0 };
 }
 
-export async function createPost(p: Omit<PostRecord, "up" | "down" | "score" | "comments">) {
-  const record: PostRecord = { ...p, up: 0, down: 0, score: 0, comments: 0 };
+export async function createPost(p: Omit<PostRecord, "up" | "down" | "score" | "comments" | "pickedBy">) {
+  const record: PostRecord = { ...p, up: 0, down: 0, score: 0, comments: 0, pickedBy: "" };
+  const { pickedBy: _p, ...fields } = record;
   const tx = redis.multi();
-  tx.hset(K.post(p.id), Object.fromEntries(Object.entries(record).map(([k, v]) => [k, String(v)])));
+  tx.hset(K.post(p.id), Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, String(v)])));
   tx.zadd(BOARD.new, { score: p.createdAt, member: p.id });
   tx.zadd(BOARD.top, { score: 0, member: p.id });
   tx.zadd(BOARD.hot, { score: hotScore(0, p.createdAt), member: p.id });
-  tx.zadd(BOARD.discussed, { score: 0, member: p.id });
   tx.zadd(K.userPosts(p.authorId), { score: p.createdAt, member: p.id });
   await tx.exec();
   return record;
@@ -301,6 +320,15 @@ export async function vote(id: string, userId: string, value: -1 | 0 | 1) {
   if (!res) return null;
   const [up, down, v] = res.map(Number) as [number, number, number];
   return { up, down, score: up - down, myVote: v };
+}
+
+/** Pick or unpick a post. Returns who picked it ('' when unpicked), or null if the post is gone. */
+export async function setPicked(id: string, picked: boolean, pickerName: string) {
+  const res = await pickScript.exec(
+    [K.post(id), BOARD.picked],
+    [id, picked ? "1" : "0", String(Date.now()), pickerName],
+  );
+  return res == null ? null : String(res);
 }
 
 export type ReactResult =
@@ -393,7 +421,7 @@ export async function addComment(
 
   const comment: CommentView = { ...c, id: newId(), createdAt: Date.now(), parentId: parentId || null, depth, deleted: false };
   const n = await addCommentScript.exec(
-    [K.post(postId), K.comments(postId), K.comment(comment.id), BOARD.discussed, K.comment(parentId || comment.id)],
+    [K.post(postId), K.comments(postId), K.comment(comment.id), K.comment(parentId || comment.id)],
     [comment.id, postId, c.authorId, c.authorName, c.body, String(comment.createdAt), parentId, String(depth)],
   );
   if (n == null) return { ok: false, reason: "post-gone" };
@@ -408,7 +436,7 @@ export async function deleteComment(postId: string, cid: string) {
     const c = await getComment(current);
     if (!c) return step > 0;
     const res = await deleteCommentScript.exec(
-      [K.post(postId), K.comments(postId), K.comment(c.id), BOARD.discussed, K.comment(c.parentId ?? c.id)],
+      [K.post(postId), K.comments(postId), K.comment(c.id), K.comment(c.parentId ?? c.id)],
       [c.id, postId, c.parentId ? "1" : "0"],
     );
     if (res == null) return step > 0;
@@ -428,4 +456,17 @@ export async function isBanned(userId: string) {
 export async function setBanned(userId: string, banned: boolean) {
   if (banned) await redis.sadd(K.banned, userId);
   else await redis.srem(K.banned, userId);
+}
+
+// ---------------------------------------------------------------------------
+// Curators (can cherrypick posts; admins always can)
+// ---------------------------------------------------------------------------
+
+export async function isCurator(userId: string) {
+  return Number(await redis.sismember(K.curators, userId)) === 1;
+}
+
+export async function setCurator(userId: string, curator: boolean) {
+  if (curator) await redis.sadd(K.curators, userId);
+  else await redis.srem(K.curators, userId);
 }

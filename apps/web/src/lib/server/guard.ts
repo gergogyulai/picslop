@@ -1,6 +1,6 @@
 import { error, type RequestEvent } from "@sveltejs/kit";
 
-import { isBanned } from "./posts";
+import { isBanned, isCurator } from "./posts";
 
 export function requireUser(locals: App.Locals) {
   if (!locals.user) error(401, "Sign in required.");
@@ -18,6 +18,12 @@ export function requireAdmin(locals: App.Locals) {
   const user = requireUser(locals);
   if (!locals.isAdmin) error(403, "Admins only.");
   return user;
+}
+
+/** Admins and designated curators can cherrypick posts. */
+export async function canPick(locals: App.Locals) {
+  if (!locals.user) return false;
+  return locals.isAdmin || (await isCurator(locals.user.id));
 }
 
 export function clientIp(event: RequestEvent) {

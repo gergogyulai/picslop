@@ -1,7 +1,7 @@
 import { error } from "@sveltejs/kit";
 
 import { displayName, requireUser } from "$lib/server/guard";
-import { isBanned, listPosts } from "$lib/server/posts";
+import { isBanned, isCurator, listPosts } from "$lib/server/posts";
 import type { PageServerLoad } from "./$types";
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -14,6 +14,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     name: isMe ? displayName(locals.user!) : (page.posts[0]?.authorName ?? null),
     isMe,
     banned: locals.isAdmin || isMe ? await isBanned(params.id) : false,
+    curator: await isCurator(params.id),
     ...page,
   };
 };
