@@ -67,6 +67,14 @@ export async function getRange(key: string, start: number, end: number) {
   return new Uint8Array(await res.arrayBuffer());
 }
 
+/** Streaming GET: the caller reads (or cancels) the body. Resolves to null when the object is missing. */
+export async function fetchObject(key: string) {
+  const res = await client.fetch(objectUrl(key));
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`R2 GET ${key} failed: ${res.status}`);
+  return res;
+}
+
 export async function getObject(key: string) {
   const res = await client.fetch(objectUrl(key));
   if (!res.ok) throw new Error(`R2 GET ${key} failed: ${res.status}`);

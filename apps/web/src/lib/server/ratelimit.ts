@@ -16,6 +16,8 @@ export const limits = {
   commentDaily: make("cmt:d", Ratelimit.slidingWindow(300, "1 d")),
   read: make("read", Ratelimit.slidingWindow(300, "1 m")),
   pick: make("pick", Ratelimit.slidingWindow(60, "1 m")),
+  // Each export streams every media file out of R2, so keep accidental repeat clicks cheap.
+  export: make("export", Ratelimit.slidingWindow(6, "1 h")),
 };
 
 /** Throws 429 if any of the given limiters rejects this identifier. */
