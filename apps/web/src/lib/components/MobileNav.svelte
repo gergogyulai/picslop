@@ -13,6 +13,13 @@
 	class="fixed inset-x-0 bottom-0 z-40 border-t-2 border-ink bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-[2px] sm:hidden"
 	aria-label="Main"
 >
+	<!--
+		iOS 26 Safari lays the page out above its floating toolbar but still paints content
+		underneath it, so a bottom:0 bar leaves a strip of scrolling page between itself and
+		Safari's bar. Bleed the nav's paper down past the viewport edge to fill that strip;
+		in browsers that don't paint below the viewport (Chrome, PWA) it's simply off-screen.
+	-->
+	<div aria-hidden="true" class="pointer-events-none absolute inset-x-0 top-full h-40 bg-paper/95"></div>
 	<div class="grid h-16 grid-cols-3 items-stretch">
 		<a href="/" class="tab {onBoard ? 'on' : ''}" aria-current={onBoard ? 'page' : undefined}>
 			<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
