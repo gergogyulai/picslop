@@ -1,7 +1,19 @@
 import { ObjectId } from "@picslop/db";
 
 import { isAdminEmail } from "./access";
-import { BOARD, K, parsePost, toHash, type PostRecord } from "./posts";
+import { blockEmail, listBlocked, normalizeEmail } from "./blocklist";
+import {
+  BOARD,
+  K,
+  deleteComment,
+  deletePost,
+  getPostRecord,
+  parsePost,
+  toHash,
+  toggleReaction,
+  vote,
+  type PostRecord,
+} from "./posts";
 import { presignGet } from "./r2";
 import { redis } from "./redis";
 
@@ -24,6 +36,8 @@ export type AdminUser = {
   lastSeenAt: number;
   role: Role;
   banned: boolean;
+  /** Email is blacklisted: they can't sign in at all. */
+  blocked: boolean;
   passkeys: number;
   posts: number;
   points: number;
@@ -134,7 +148,7 @@ type UserDoc = { _id: ObjectId; name?: string; email: string; createdAt?: Date }
 
 async function loadUsers() {
   const { db } = await services();
-  const [docs, passkeys, banned, curators, admins] = await Promise.all([
+  const [docs, passkeys, banned, curators, admins, blocked] = await Promise.all([
     db
       .collection<UserDoc>("user")
       .find({}, { projection: { name: 1, email: 1, createdAt: 1 } })
@@ -146,6 +160,7 @@ async function loadUsers() {
     redis.smembers(K.banned) as Promise<string[]>,
     redis.smembers(K.curators) as Promise<string[]>,
     redis.smembers(K.admins) as Promise<string[]>,
+    listBlocked(),
   ]);
   return {
     docs,
@@ -153,6 +168,7 @@ async function loadUsers() {
     banned: new Set(banned),
     curators: new Set(curators),
     admins: new Set(admins),
+    blocked: new Set(blocked.map((b) => b.email)),
   };
 }
 
@@ -196,6 +212,7 @@ export async function listAdminUsers(): Promise<AdminUser[]> {
       lastSeenAt: seen.get(id) ?? 0,
       role: roleOf({ id, email: d.email }, u.admins, u.curators),
       banned: u.banned.has(id),
+      blocked: u.blocked.has(normalizeEmail(d.email)),
       passkeys: u.passkeys.get(id) ?? 0,
       posts: a?.posts ?? 0,
       points: a?.points ?? 0,
@@ -297,4 +314,99 @@ export async function findUser(userId: string) {
   const { db } = await services();
   const d = await db.collection<UserDoc>("user").findOne({ _id: new ObjectId(userId) }, { projection: { email: 1, name: 1 } });
   return d ? { id: userId, email: d.email, name: d.name ?? "" } : null;
+}
+
+export type PurgeSummary = {
+  posts: number;
+  comments: number;
+  votes: number;
+  reactions: number;
+  blacklisted: boolean;
+};
+
+/**
+ * Deletes an account and everything it left behind: its posts (and their media), its comments on
+ * anyone's posts, the votes and reactions it cast, its roles, sessions, sign-in methods and the
+ * account itself. With `blacklist`, the address is blacklisted first so it can't sign back in
+ * while the purge runs, or ever again.
+ */
+export async function purgeUser(
+  user: { id: string; email: string },
+  opts: { blacklist: boolean; by: string; reason?: string },
+): Promise<PurgeSummary> {
+  const { auth, db } = await services();
+  const ctx = await auth.$context;
+  const uid = user.id;
+
+  if (opts.blacklist) await blockEmail(user.email, opts.by, opts.reason);
+  // Sessions go first: from here on they can't act while we clean up.
+  await ctx.internalAdapter.deleteUserSessions(uid);
+
+  // Their own posts (comments, votes and reactions on them go with the post).
+  const ownIds = (await redis.zrange(K.userPosts(uid), 0, -1)) as string[];
+  let posts = 0;
+  for (const id of ownIds) {
+    const p = await getPostRecord(id);
+    if (!p) continue;
+    await deletePost(p);
+    posts++;
+  }
+
+  // Their footprint on everyone else's posts.
+  let comments = 0;
+  let votes = 0;
+  let reactions = 0;
+  const ids = (await redis.zrange(BOARD.new, 0, -1)) as string[];
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const pipe = redis.pipeline();
+    for (const id of chunk) {
+      pipe.hget(K.votes(id), uid);
+      pipe.hget(K.userReactions(id), uid);
+      pipe.zrange(K.comments(id), 0, -1);
+    }
+    const res = (await pipe.exec()) as unknown[];
+
+    for (let j = 0; j < chunk.length; j++) {
+      const id = chunk[j]!;
+      if (Number(res[j * 3]) && (await vote(id, uid, 0))) votes++;
+      for (const emoji of String(res[j * 3 + 1] ?? "").split(",").filter(Boolean)) {
+        // Toggling an emoji they already left removes it.
+        const r = await toggleReaction(id, uid, emoji);
+        if (r?.ok && !r.on) reactions++;
+      }
+
+      const cids = (res[j * 3 + 2] as string[] | null) ?? [];
+      if (!cids.length) continue;
+      const authors = (await cids.reduce((p, cid) => p.hget(K.comment(cid), "authorId"), redis.pipeline()).exec()) as (string | null)[];
+      // Newest first, so a reply goes before the comment it answers and both disappear completely.
+      for (let k = cids.length - 1; k >= 0; k--) {
+        if (authors[k] === uid && (await deleteComment(id, cids[k]!))) comments++;
+      }
+    }
+  }
+
+  // Roles, flags and indexes.
+  await redis
+    .multi()
+    .srem(K.banned, uid)
+    .srem(K.curators, uid)
+    .srem(K.admins, uid)
+    .del(K.userPosts(uid))
+    .exec();
+
+  // Sign-in methods and the account itself.
+  const oid = new ObjectId(uid);
+  await db.collection("passkey").deleteMany({ userId: { $in: [oid, uid] } });
+  await ctx.internalAdapter.deleteAccounts(uid);
+  await ctx.internalAdapter.deleteUser(uid);
+
+  return { posts, comments, votes, reactions, blacklisted: opts.blacklist };
+}
+
+/** The account id registered to this address, if any. */
+export async function findUserIdByEmail(email: string) {
+  const { auth } = await services();
+  const found = await (await auth.$context).internalAdapter.findUserByEmail(normalizeEmail(email));
+  return found?.user.id ?? null;
 }
