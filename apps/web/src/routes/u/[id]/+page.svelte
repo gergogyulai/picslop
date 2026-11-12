@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api } from '$lib/api';
+	import AdminExport from '$lib/components/AdminExport.svelte';
 	import Masonry from '$lib/components/Masonry.svelte';
 	import PasskeyManager from '$lib/components/PasskeyManager.svelte';
 	import type { PostView } from '$lib/constants';
@@ -92,6 +93,7 @@
 	</section>
 
 	{#if data.isMe}<PasskeyManager />{/if}
+	{#if data.isMe && isAdmin}<AdminExport />{/if}
 
 	<div class="mb-4 h-[3px] bg-ink md:mb-6"></div>
 

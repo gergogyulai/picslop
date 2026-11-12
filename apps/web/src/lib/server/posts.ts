@@ -212,7 +212,7 @@ export function toHash(raw: unknown): Record<string, string> | null {
   return null;
 }
 
-function parsePost(raw: unknown): PostRecord | null {
+export function parsePost(raw: unknown): PostRecord | null {
   const h = toHash(raw);
   if (!h || !h.id) return null;
   const n = (k: string) => Number(h[k] ?? 0) || 0;
