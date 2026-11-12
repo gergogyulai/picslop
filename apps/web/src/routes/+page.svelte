@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { api } from '$lib/api';
 	import Masonry from '$lib/components/Masonry.svelte';
-	import { SORTS, type PostView } from '$lib/constants';
+	import { DEFAULT_SORT, SORTS, type PostView } from '$lib/constants';
 	import { FEED_COOKIE, setPrefCookie } from '$lib/masonry';
 	import { toastError } from '$lib/toast.svelte';
 	import { untrack } from 'svelte';
@@ -76,7 +76,7 @@
 			>
 				{#each SORTS as s (s.id)}
 					<a
-						href={s.id === 'hot' ? '/' : `/?sort=${s.id}`}
+						href={s.id === DEFAULT_SORT ? '/' : `/?sort=${s.id}`}
 						data-sveltekit-noscroll
 						aria-current={data.sort === s.id ? 'page' : undefined}
 						class="btn shrink-0 whitespace-nowrap {data.sort === s.id ? 'btn-ink -rotate-1' : ''}"

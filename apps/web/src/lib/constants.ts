@@ -69,13 +69,15 @@ export function isEmoji(s: unknown): s is string {
 }
 
 export const SORTS = [
-  { id: "hot", label: "Hot" },
   { id: "top", label: "Top" },
+  { id: "hot", label: "Hot" },
   { id: "new", label: "New" },
   { id: "picked", label: "Picked" },
 ] as const;
 
 export type SortId = (typeof SORTS)[number]["id"];
+
+export const DEFAULT_SORT: SortId = "top";
 
 export type MediaKind = "image" | "video";
 

@@ -1,6 +1,6 @@
 import { error, json } from "@sveltejs/kit";
 
-import { SORTS, type SortId } from "$lib/constants";
+import { DEFAULT_SORT, SORTS, type SortId } from "$lib/constants";
 import { requireUser } from "$lib/server/guard";
 import { listPosts } from "$lib/server/posts";
 import { enforce, limits } from "$lib/server/ratelimit";
@@ -10,7 +10,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
   const user = requireUser(locals);
   await enforce(user.id, limits.read);
 
-  const sort = (url.searchParams.get("sort") ?? "hot") as SortId;
+  const sort = (url.searchParams.get("sort") ?? DEFAULT_SORT) as SortId;
   if (!SORTS.some((s) => s.id === sort)) error(400, "Invalid sort.");
   const offset = Math.max(0, Math.min(10_000, Number(url.searchParams.get("offset")) || 0));
   const byUser = url.searchParams.get("user") ?? undefined;
