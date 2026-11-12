@@ -5,7 +5,8 @@
 
 	const tabs = [
 		{ href: '/admin', label: 'Overview' },
-		{ href: '/admin/users', label: 'Users' }
+		{ href: '/admin/users', label: 'Users' },
+		{ href: '/admin/posts', label: 'Posts' }
 	];
 </script>
 

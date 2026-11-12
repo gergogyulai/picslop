@@ -410,3 +410,53 @@ export async function findUserIdByEmail(email: string) {
   const found = await (await auth.$context).internalAdapter.findUserByEmail(normalizeEmail(email));
   return found?.user.id ?? null;
 }
+
+export type AdminPost = {
+  id: string;
+  kind: string;
+  caption: string;
+  authorId: string;
+  authorName: string;
+  createdAt: number;
+  score: number;
+  comments: number;
+  picked: boolean;
+  thumbUrl: string;
+};
+
+/** Every post, newest first, with a thumbnail for the moderation grid. */
+export async function listAdminPosts(): Promise<AdminPost[]> {
+  const { records } = await scanPosts();
+  return Promise.all(
+    records.map(async (p) => ({
+      id: p.id,
+      kind: p.kind,
+      caption: p.caption,
+      authorId: p.authorId,
+      authorName: p.authorName,
+      createdAt: p.createdAt,
+      score: p.score,
+      comments: p.comments,
+      picked: !!p.pickedBy,
+      thumbUrl: await presignGet(p.thumbKey),
+    })),
+  );
+}
+
+/** Deletes posts by id (with their media, comments, votes and reactions). Unknown ids are skipped. */
+export async function deletePosts(ids: string[]) {
+  let deleted = 0;
+  // A few at a time: each delete is a Redis transaction plus two R2 deletes.
+  for (let i = 0; i < ids.length; i += 10) {
+    const done = await Promise.all(
+      ids.slice(i, i + 10).map(async (id) => {
+        const p = await getPostRecord(id);
+        if (!p) return false;
+        await deletePost(p);
+        return true;
+      }),
+    );
+    deleted += done.filter(Boolean).length;
+  }
+  return { deleted, missing: ids.length - deleted };
+}
