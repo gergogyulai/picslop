@@ -3,6 +3,7 @@
 	import { page } from '$app/state';
 	import { api } from '$lib/api';
 	import Masonry from '$lib/components/Masonry.svelte';
+	import PasskeyManager from '$lib/components/PasskeyManager.svelte';
 	import type { PostView } from '$lib/constants';
 	import { signOut } from '$lib/session';
 	import { toast, toastError } from '$lib/toast.svelte';
@@ -71,6 +72,8 @@
 			{/if}
 		</div>
 	</section>
+
+	{#if data.isMe}<PasskeyManager />{/if}
 
 	<div class="mb-4 h-[3px] bg-ink md:mb-6"></div>
 
