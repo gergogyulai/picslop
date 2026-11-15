@@ -106,7 +106,11 @@
 <div class="mx-auto max-w-[1400px] px-4 md:px-6">
 	<section class="flex flex-col gap-4 pt-5 pb-4 md:flex-row md:items-end md:justify-between md:gap-5 md:pt-12 md:pb-6">
 		<div>
-			<p class="label text-muted">{blurb[data.sort]}</p>
+			<p class="label text-muted">
+				{blurb[data.sort]}
+				<span aria-hidden="true">·</span>
+				{data.total.toLocaleString()} {data.total === 1 ? 'post' : 'posts'}
+			</p>
 			<h1 class="display mt-1.5 text-[2.6rem] md:mt-2 md:text-[5.5rem]">The board</h1>
 		</div>
 
