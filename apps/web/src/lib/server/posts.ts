@@ -263,6 +263,11 @@ export async function getPostRecord(id: string) {
   return parsePost(await redis.hgetall(K.post(id)));
 }
 
+/** How many posts are on a board. */
+export async function countBoard(sort: SortId) {
+  return redis.zcard(BOARD[sort]);
+}
+
 export async function listPosts(opts: {
   sort: SortId;
   offset: number;
