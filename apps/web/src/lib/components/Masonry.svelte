@@ -38,7 +38,7 @@
 		<div class="flex min-w-0 flex-1 flex-col">
 			{#each col as { post, index } (post.id)}
 				<!-- Offscreen cards skip layout/paint; the size hint keeps the scrollbar steady until measured. -->
-				<div class="offscreen-skip" style="contain-intrinsic-size: auto {Math.round(colWidth)}px auto {Math.round(estimateCardHeight(post, colWidth))}px">
+				<div class="offscreen-skip" data-post-id={post.id} style="contain-intrinsic-size: auto {Math.round(colWidth)}px auto {Math.round(estimateCardHeight(post, colWidth))}px">
 					<PostCard {post} {index} rank={ranked ? index : undefined} />
 				</div>
 			{/each}

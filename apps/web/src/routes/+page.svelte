@@ -4,7 +4,8 @@
 	import { DEFAULT_SORT, SORTS, type PostView } from '$lib/constants';
 	import { FEED_COOKIE, setPrefCookie } from '$lib/masonry';
 	import { toastError } from '$lib/toast.svelte';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
+	import type { Snapshot } from './$types';
 
 	let { data } = $props();
 
@@ -50,6 +51,47 @@
 		io.observe(sentinel);
 		return () => io.disconnect();
 	});
+
+	// Coming back from a post: put back the pages loaded so far and the card that was on screen.
+	// SvelteKit restores scroll before snapshots, while only the first page exists, so we scroll ourselves.
+	type BoardSnapshot = {
+		sort: string;
+		posts: PostView[];
+		nextOffset: number | null;
+		anchor: { id: string; top: number } | null;
+		scrollY: number;
+	};
+
+	function findAnchor() {
+		let best: { id: string; top: number } | null = null;
+		for (const el of document.querySelectorAll<HTMLElement>('[data-post-id]')) {
+			const r = el.getBoundingClientRect();
+			if (r.bottom <= 0 || r.top >= innerHeight) continue;
+			if (!best || Math.abs(r.top) < Math.abs(best.top)) best = { id: el.dataset.postId!, top: r.top };
+		}
+		return best;
+	}
+
+	export const snapshot: Snapshot<BoardSnapshot> = {
+		capture: () => ({
+			sort: data.sort,
+			posts: $state.snapshot(posts),
+			nextOffset,
+			anchor: findAnchor(),
+			scrollY
+		}),
+		restore: async (s) => {
+			if (s.sort !== data.sort || s.posts.length === 0) return;
+			// Keep the old order so the layout doesn't jump, but take fresh counts/votes where the server has them.
+			const fresh = new Map(data.posts.map((p) => [p.id, p]));
+			posts.splice(0, posts.length, ...s.posts.map((p) => fresh.get(p.id) ?? p));
+			nextOffset = s.nextOffset;
+			await tick();
+			const el = s.anchor && document.querySelector(`[data-post-id="${CSS.escape(s.anchor.id)}"]`);
+			if (el) scrollBy(0, el.getBoundingClientRect().top - s.anchor!.top);
+			else scrollTo(0, s.scrollY);
+		}
+	};
 
 	const blurb: Record<string, string> = {
 		hot: 'Rising right now',
