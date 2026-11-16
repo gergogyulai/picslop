@@ -30,6 +30,7 @@
 
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { isDark } from '$lib/theme';
 
 	let {
 		siteKey,
@@ -54,7 +55,7 @@
 				widgetId = ts.render(el, {
 					sitekey: siteKey,
 					action,
-					theme: 'light',
+					theme: isDark() ? 'dark' : 'light',
 					size: 'flexible',
 					callback: (t: string) => (token = t),
 					'expired-callback': () => (token = ''),
