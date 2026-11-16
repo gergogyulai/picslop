@@ -184,6 +184,29 @@ redis.call('HSET', KEYS[1], 'updatedAt', ARGV[5])
 return 1
 `);
 
+// KEYS: set, order, log, then one item key per post id
+// ARGV: state, byId, byName, at, reason, then the post ids, then one log entry per post id
+// Bulk version of reviewScript, in one atomic step. Ids no longer in the set are skipped.
+// Returns how many images were reviewed, or false when the set doesn't exist.
+const reviewManyScript = redis.createScript<number | null>(`
+if redis.call('EXISTS', KEYS[1]) == 0 then return false end
+local n = (#ARGV - 5) / 2
+local done = 0
+for i = 1, n do
+  local id = ARGV[5 + i]
+  if redis.call('ZSCORE', KEYS[2], id) then
+    redis.call('HSET', KEYS[3 + i], 'state', ARGV[1], 'stateById', ARGV[2], 'stateByName', ARGV[3], 'stateAt', ARGV[4], 'reason', ARGV[5])
+    redis.call('RPUSH', KEYS[3], ARGV[5 + n + i])
+    done = done + 1
+  end
+end
+if done > 0 then
+  redis.call('LTRIM', KEYS[3], -${LOG_KEEP}, -1)
+  redis.call('HSET', KEYS[1], 'updatedAt', ARGV[4])
+end
+return done
+`);
+
 // ---------------------------------------------------------------------------
 // Reading
 // ---------------------------------------------------------------------------
@@ -441,6 +464,23 @@ export async function review(id: string, postId: string, state: "approved" | "ve
     [postId, state, by.id, by.name, String(at), state === "vetoed" ? reason : "", logJson(entry)],
   );
   if (res == null) error(404, "That image isn't in this set any more.");
+}
+
+/** Approves or vetoes several images at once (same reason for all). Returns how many were reviewed. */
+export async function reviewMany(id: string, postIds: string[], state: "approved" | "vetoed", reason: string, by: Actor) {
+  const at = Date.now();
+  const why = state === "vetoed" ? reason : "";
+  const entries = postIds.map((postId) => {
+    const e: SetLogEntry = { at, byId: by.id, byName: by.name, action: state === "approved" ? "approve" : "veto", postId };
+    if (why) e.reason = why;
+    return logJson(e);
+  });
+  const res = await reviewManyScript.exec(
+    [SK.set(id), SK.order(id), SK.log(id), ...postIds.map((pid) => SK.item(id, pid))],
+    [state, by.id, by.name, String(at), why, ...postIds, ...entries],
+  );
+  if (res == null) error(404, "Set not found.");
+  return Number(res);
 }
 
 // ---------------------------------------------------------------------------
