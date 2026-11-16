@@ -5,7 +5,7 @@
 	import StateBadge from '$lib/components/StateBadge.svelte';
 	import type { PostView } from '$lib/constants';
 	import { timeAgo } from '$lib/format';
-	import { SET_NAME_MAX, blockerText, canExport, exportBlockers, type SetItemView, type SetLogEntry } from '$lib/sets';
+	import { SET_MAX_ITEMS, SET_NAME_MAX, blockerText, type BulkAddResult, canExport, exportBlockers, type SetItemView, type SetLogEntry } from '$lib/sets';
 	import { toast, toastError } from '$lib/toast.svelte';
 
 	let { data } = $props();
@@ -208,6 +208,29 @@
 		}
 	}
 
+	let addingAll = $state(false);
+	async function addAllPicked() {
+		addingAll = true;
+		try {
+			const r = await api<BulkAddResult>(`/api/sets/${set.id}/items`, { body: { from: 'picked' } });
+			const skipped = [
+				r.present && `${r.present} already in the set`,
+				r.rejected && `${r.rejected} vetoed for this set`,
+				r.full && `${r.full} over the ${SET_MAX_ITEMS}-image limit`,
+				r.videos && `${r.videos} ${r.videos === 1 ? 'video' : 'videos'}`
+			].filter(Boolean);
+			toast(
+				`${r.added ? `Added ${r.added} ${r.added === 1 ? 'image' : 'images'}, all pending review` : 'Nothing new to add'}${skipped.length ? `. Skipped ${skipped.join(', ')}` : ''}.`
+			);
+			await invalidateAll();
+			if (r.added) picker?.close();
+		} catch (e) {
+			toastError(e);
+		} finally {
+			addingAll = false;
+		}
+	}
+
 	// --- Set actions --------------------------------------------------------------------------
 
 	let renaming = $state(false);
@@ -262,6 +285,7 @@
 		create: 'created the set',
 		rename: 'renamed the set',
 		add: 'added',
+		'add-many': 'added every picked image',
 		remove: 'removed',
 		replace: 'replaced a vetoed image with',
 		reorder: 'reordered the images',
@@ -392,7 +416,7 @@
 				{#each data.log as e, k (k)}
 					<li class="flex flex-wrap gap-x-2 py-1.5">
 						<span class="font-mono text-xs text-muted">{timeAgo(e.at)}</span>
-						<span><b>@{e.byName || 'someone'}</b> {ACTION[e.action]}{#if e.postId && e.action !== 'reorder'} <a class="font-mono text-xs underline" href="/p/{e.postId}">{e.postId}</a>{/if}{#if e.replaced} (out: <span class="font-mono text-xs">{e.replaced}</span>){/if}{#if e.reason} — “{e.reason}”{/if}</span>
+						<span><b>@{e.byName || 'someone'}</b> {ACTION[e.action]}{#if e.count} ({e.count}){/if}{#if e.postId && e.action !== 'reorder'} <a class="font-mono text-xs underline" href="/p/{e.postId}">{e.postId}</a>{/if}{#if e.replaced} (out: <span class="font-mono text-xs">{e.replaced}</span>){/if}{#if e.reason} — “{e.reason}”{/if}</span>
 					</li>
 				{/each}
 			</ul>
@@ -414,10 +438,20 @@
 			</div>
 			<button class="btn px-3 py-1.5 text-xs" onclick={() => picker?.close()}>Done</button>
 		</div>
-		<div class="flex gap-2 px-4 pt-3">
+		<div class="flex flex-wrap items-center gap-2 px-4 pt-3">
 			{#each SOURCES as s (s.id)}
 				<button class="btn px-3 py-1.5 text-xs {source === s.id ? 'btn-ink' : ''}" onclick={() => setSource(s.id)} aria-pressed={source === s.id}>{s.label}</button>
 			{/each}
+			{#if source === 'picked' && !replacing}
+				<button
+					class="btn btn-accent ml-auto px-3 py-1.5 text-xs"
+					onclick={addAllPicked}
+					disabled={addingAll || picking !== null}
+					title="Append every image on the Picked board that isn't in this set yet"
+				>
+					{addingAll ? 'Adding…' : '+ Add all picked'}
+				</button>
+			{/if}
 		</div>
 		<div class="overflow-y-auto p-4">
 			<ul class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
