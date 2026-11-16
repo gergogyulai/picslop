@@ -2,6 +2,7 @@
 	import { goto, invalidateAll } from '$app/navigation';
 	import { flip } from 'svelte/animate';
 	import { api } from '$lib/api';
+	import PhotoViewer from '$lib/components/PhotoViewer.svelte';
 	import StateBadge from '$lib/components/StateBadge.svelte';
 	import type { PostView } from '$lib/constants';
 	import { timeAgo } from '$lib/format';
@@ -273,6 +274,16 @@
 		}
 	}
 
+	// --- Photo viewer -------------------------------------------------------------------------
+
+	const photos = $derived(
+		items.flatMap((it, i) =>
+			it.post ? [{ id: it.postId, src: it.post.mediaUrl, thumb: it.post.thumbUrl, alt: it.post.caption || `Image ${i + 1}`, it, position: i + 1 }] : []
+		)
+	);
+	let viewing = $state<number | null>(null);
+	const openViewer = (postId: string) => (viewing = photos.findIndex((p) => p.id === postId));
+
 	// --- Display helpers ----------------------------------------------------------------------
 
 	function stateLine(it: SetItemView) {
@@ -372,7 +383,9 @@
 					<div class="flex w-11 shrink-0 items-center justify-center font-mono text-lg font-bold md:w-14 md:text-2xl">{i + 1}</div>
 					<div class="my-2 h-20 w-20 shrink-0 border-2 border-ink bg-paper-2 md:h-24 md:w-24">
 						{#if it.post}
-							<img src={it.post.thumbUrl} alt={it.post.caption || `Image ${i + 1}`} class="h-full w-full object-cover {it.state === 'vetoed' ? 'opacity-50 grayscale' : ''}" draggable="false" />
+							<button class="block h-full w-full cursor-zoom-in" onclick={() => openViewer(it.postId)} aria-label="View image {i + 1} larger" title="View larger">
+								<img src={it.post.thumbUrl} alt={it.post.caption || `Image ${i + 1}`} class="h-full w-full object-cover {it.state === 'vetoed' ? 'opacity-50 grayscale' : ''}" draggable="false" />
+							</button>
 						{:else}
 							<div class="grid h-full place-items-center p-1 text-center text-[0.65rem] text-muted">deleted</div>
 						{/if}
@@ -423,6 +436,24 @@
 		</details>
 	{/if}
 </div>
+
+<PhotoViewer {photos} bind:index={viewing}>
+	{#snippet info(p)}
+		<p class="display text-2xl">#{p.position}</p>
+		<div><StateBadge state={p.it.state} /></div>
+		<p class="font-mono text-xs text-muted">{stateLine(p.it)}</p>
+		{#if p.it.state === 'vetoed' && p.it.reason}
+			<p class="text-sm text-danger"><span class="label">reason:</span> “{p.it.reason}”</p>
+		{/if}
+		{#if p.it.post?.caption}<p class="text-sm">{p.it.post.caption}</p>{/if}
+		<p class="font-mono text-xs text-muted">by @{p.it.post?.authorName || 'someone'}{#if p.it.post?.width} · {p.it.post.width}×{p.it.post.height}{/if}</p>
+	{/snippet}
+	{#snippet actions(p)}
+		{#if p.it.state === 'vetoed'}
+			<button class="btn btn-ink w-full px-2.5 py-1.5 text-xs" onclick={() => ((viewing = null), openPicker(p.it))}>Replace…</button>
+		{/if}
+	{/snippet}
+</PhotoViewer>
 
 <dialog bind:this={picker} class="box m-auto max-h-[min(44rem,calc(100svh-2rem))] w-[min(56rem,calc(100vw-2rem))] p-0 backdrop:bg-ink/50" onclose={() => (replacing = null)}>
 	<div class="flex max-h-[min(44rem,calc(100svh-2rem))] flex-col">
