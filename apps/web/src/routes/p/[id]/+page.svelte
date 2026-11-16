@@ -215,7 +215,7 @@
 			class="box self-start overflow-hidden max-sm:-mx-4 max-sm:border-x-0 max-sm:shadow-none"
 			style="animation: rise 380ms cubic-bezier(.2,.8,.2,1) both"
 		>
-			<div class="relative grid place-items-center {post.kind === 'video' ? 'bg-ink' : 'bg-paper-2'}">
+			<div class="relative grid place-items-center {post.kind === 'video' ? 'bg-black' : 'bg-paper-2'}">
 				{#if post.kind === 'video'}
 					<!-- svelte-ignore a11y_media_has_caption -->
 					<video

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { signOut } from '$lib/session';
+	import ThemeToggle from './ThemeToggle.svelte';
 
 	let {
 		user,
@@ -64,5 +65,6 @@
 				<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" /></svg>
 			</button>
 		</nav>
+		<ThemeToggle class="max-sm:ml-auto max-sm:px-2 max-sm:py-1.5" />
 	</div>
 </header>

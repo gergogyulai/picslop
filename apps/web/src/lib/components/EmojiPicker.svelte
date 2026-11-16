@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { isDark } from '$lib/theme';
 
 	let {
 		onpick,
@@ -23,7 +24,7 @@
 				import('emoji-picker-element-data/en/emojibase/data.json?url')
 			]);
 			picker = new Picker({ dataSource, locale: 'en' }) as unknown as HTMLElement;
-			picker.classList.add('light');
+			picker.classList.add(isDark() ? 'dark' : 'light');
 			picker.addEventListener('emoji-click', (e) => {
 				const unicode = (e as CustomEvent<{ unicode?: string }>).detail.unicode;
 				if (unicode) {
