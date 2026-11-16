@@ -26,6 +26,24 @@ export async function canPick(locals: App.Locals) {
   return locals.isAdmin || (await isCurator(locals.user.id));
 }
 
+/** Curated sets: designated curators and admins (who can already do everything a curator can). */
+export function canCurate(locals: App.Locals) {
+  return !!locals.user && (locals.isAdmin || locals.isCurator);
+}
+
+export async function requireCurator(locals: App.Locals) {
+  const user = await requireActiveUser(locals);
+  if (!canCurate(locals)) error(403, "Curators only.");
+  return user;
+}
+
+/** Approving and vetoing is reviewers only. Being an admin or a curator doesn't grant it. */
+export async function requireReviewer(locals: App.Locals) {
+  const user = await requireActiveUser(locals);
+  if (!locals.isReviewer) error(403, "Only reviewers can approve or veto images.");
+  return user;
+}
+
 export function clientIp(event: RequestEvent) {
   try {
     return event.getClientAddress();

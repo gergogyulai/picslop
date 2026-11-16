@@ -39,12 +39,19 @@ export async function listBlocked(): Promise<BlockEntry[]> {
     .sort((a, b) => b.at - a.at);
 }
 
-/** Both per-request checks in one round trip: is this user a promoted admin, is their address blacklisted. */
+/** Every per-request check in one round trip: the user's roles, and whether their address is blacklisted. */
 export async function sessionFlags(userId: string, email: string) {
-  const [admin, blocked] = (await redis
+  const [admin, blocked, curator, reviewer] = (await redis
     .pipeline()
     .sismember(K.admins, userId)
     .hexists(K.blocklist, normalizeEmail(email))
-    .exec()) as [number, number];
-  return { promotedAdmin: Number(admin) === 1, blocked: Number(blocked) === 1 };
+    .sismember(K.curators, userId)
+    .sismember(K.reviewers, userId)
+    .exec()) as [number, number, number, number];
+  return {
+    promotedAdmin: Number(admin) === 1,
+    blocked: Number(blocked) === 1,
+    curator: Number(curator) === 1,
+    reviewer: Number(reviewer) === 1,
+  };
 }

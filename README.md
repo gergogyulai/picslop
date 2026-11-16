@@ -12,6 +12,7 @@ picslop is a self-hosted image and video board gated to your own email domain. S
 - 🖼️ Images and video, with HEIC→JPEG conversion and in-browser video validation
 - ⬆️⬇️ Voting, nested comments, and emoji reactions
 - 🔥 Hot / top / new / picked boards; admins designate curators who hand-pick posts
+- 🎞️ Curated sets for slideshow videos: curators arrange images, reviewers approve or veto them, and clean sets export as a zip with a `manifest.json` in video order
 - 🪣 Media stored in Cloudflare R2 via presigned uploads
 - 🛡️ Cloudflare Turnstile on sign-in, Redis-backed rate limiting, admin ban tools
 - 📱 Installable as a PWA

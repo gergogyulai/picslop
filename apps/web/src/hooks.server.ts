@@ -42,6 +42,8 @@ export const handle: Handle = async ({ event, resolve }) => {
   event.locals.user = session?.user ?? null;
   event.locals.session = session?.session ?? null;
   event.locals.isAdmin = !!session && (isAdminEmail(session.user.email) || !!flags?.promotedAdmin);
+  event.locals.isCurator = !!session && !!flags?.curator;
+  event.locals.isReviewer = !!session && !!flags?.reviewer;
 
   const path = event.url.pathname;
   const isPublic = PUBLIC_PATHS.some((p) => path === p || path.startsWith(`${p}/`));

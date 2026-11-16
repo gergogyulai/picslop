@@ -18,6 +18,10 @@ export const limits = {
   pick: make("pick", Ratelimit.slidingWindow(60, "1 m")),
   // Each export streams every media file out of R2, so keep accidental repeat clicks cheap.
   export: make("export", Ratelimit.slidingWindow(6, "1 h")),
+  // Curated-set edits (add, replace, remove, reorder) and reviews. Drag-reordering saves on every drop.
+  curate: make("curate", Ratelimit.slidingWindow(240, "1 m")),
+  review: make("review", Ratelimit.slidingWindow(240, "1 m")),
+  setExport: make("setx", Ratelimit.slidingWindow(30, "1 h")),
 };
 
 /** Throws 429 if any of the given limiters rejects this identifier. */
