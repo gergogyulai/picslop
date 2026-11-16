@@ -1,6 +1,7 @@
 import { error } from "@sveltejs/kit";
 
 import {
+  type BulkAddResult,
   SET_MAX_ITEMS,
   SET_NAME_MAX,
   canExport,
@@ -12,7 +13,7 @@ import {
   type SetView,
 } from "$lib/sets";
 
-import { newId, K as PK, parsePost, toHash, type PostRecord } from "./posts";
+import { BOARD, newId, K as PK, parsePost, toHash, type PostRecord } from "./posts";
 import { fetchObject, headObject, presignGet } from "./r2";
 import { redis } from "./redis";
 
@@ -67,6 +68,44 @@ redis.call('LTRIM', KEYS[5], -${LOG_KEEP}, -1)
 redis.call('HSET', KEYS[1], 'updatedAt', ARGV[4])
 redis.call('HINCRBY', KEYS[1], 'rev', 1)
 return n + 1
+`);
+
+// KEYS: set, order, rejected, log, then one item key per post id (same order as ARGV[6..])
+// ARGV: byId, byName, at, max items, log entry, then the post ids in the order to append them
+// Appends every id that isn't already in the set or rejected from it, until the set is full.
+// Returns false (no set) or {added, already in set, rejected, didn't fit}.
+const addManyScript = redis.createScript<number[] | null>(`
+if redis.call('EXISTS', KEYS[1]) == 0 then return false end
+local n = redis.call('ZCARD', KEYS[2])
+local max = tonumber(ARGV[4])
+local last = redis.call('ZRANGE', KEYS[2], -1, -1, 'WITHSCORES')
+local pos = 0
+if last[2] then pos = tonumber(last[2]) + 1 end
+local added, present, rejected, full = 0, 0, 0, 0
+for i = 6, #ARGV do
+  local id = ARGV[i]
+  local key = KEYS[i - 1]
+  if redis.call('ZSCORE', KEYS[2], id) then present = present + 1
+  elseif redis.call('SISMEMBER', KEYS[3], id) == 1 then rejected = rejected + 1
+  elseif n >= max then full = full + 1
+  else
+    redis.call('ZADD', KEYS[2], pos, id)
+    redis.call('DEL', key)
+    redis.call('HSET', key, 'postId', id, 'state', 'pending', 'stateById', ARGV[1], 'stateByName', ARGV[2],
+      'stateAt', ARGV[3], 'reason', '', 'addedById', ARGV[1], 'addedByName', ARGV[2], 'addedAt', ARGV[3], 'replaces', '')
+    pos = pos + 1
+    n = n + 1
+    added = added + 1
+  end
+end
+if added > 0 then
+  local entry = string.gsub(ARGV[5], '"count":0', '"count":' .. added)
+  redis.call('RPUSH', KEYS[4], entry)
+  redis.call('LTRIM', KEYS[4], -${LOG_KEEP}, -1)
+  redis.call('HSET', KEYS[1], 'updatedAt', ARGV[3])
+  redis.call('HINCRBY', KEYS[1], 'rev', 1)
+end
+return {added, present, rejected, full}
 `);
 
 // KEYS: set, order, item, log
@@ -334,6 +373,25 @@ export async function addItem(id: string, postId: string, by: Actor) {
   if (n === -2) error(409, "That image was vetoed for this set. Pick a different one.");
   if (n === -3) error(400, `A set can hold at most ${SET_MAX_ITEMS} images.`);
   return n;
+}
+
+/**
+ * Appends every image on the Picked board to the set, in the board's order (most recently picked
+ * first), skipping ones already in the set or vetoed out of it. All of it lands as pending.
+ */
+export async function addAllPicked(id: string, by: Actor): Promise<BulkAddResult> {
+  const ids = ((await redis.zrange(BOARD.picked, 0, -1, { rev: true })) as string[]).map(String);
+  const kinds = ids.length ? ((await ids.reduce((p, pid) => p.hget(PK.post(pid), "kind"), redis.pipeline()).exec()) as (string | null)[]) : [];
+  const images = ids.filter((_, i) => kinds[i] === "image");
+  const videos = ids.filter((_, i) => kinds[i] === "video").length;
+  const at = Date.now();
+  const res = await addManyScript.exec(
+    [SK.set(id), SK.order(id), SK.rejected(id), SK.log(id), ...images.map((pid) => SK.item(id, pid))],
+    [by.id, by.name, String(at), String(SET_MAX_ITEMS), logJson({ at, byId: by.id, byName: by.name, action: "add-many", count: 0 }), ...images],
+  );
+  if (res == null) error(404, "Set not found.");
+  const [added, present, rejected, full] = res.map(Number) as [number, number, number, number];
+  return { added, present, rejected, full, videos };
 }
 
 export async function removeItem(id: string, postId: string, by: Actor) {

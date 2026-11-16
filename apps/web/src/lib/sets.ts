@@ -41,8 +41,10 @@ export type SetLogEntry = {
   at: number;
   byId: string;
   byName: string;
-  action: "create" | "rename" | "add" | "remove" | "replace" | "reorder" | "approve" | "veto";
+  action: "create" | "rename" | "add" | "add-many" | "remove" | "replace" | "reorder" | "approve" | "veto";
   postId?: string;
+  /** For "add-many": how many images went in. */
+  count?: number;
   /** For "replace": the vetoed image that left the set. */
   replaced?: string;
   reason?: string;
@@ -60,6 +62,18 @@ export type SetView = {
   items: SetItemView[];
   /** Images vetoed and swapped out of this set; they can't be added back. */
   rejected: string[];
+};
+
+export type BulkAddResult = {
+  added: number;
+  /** Already in the set. */
+  present: number;
+  /** Vetoed out of this set before, so not allowed back. */
+  rejected: number;
+  /** Didn't fit: the set hit its size limit. */
+  full: number;
+  /** Videos, which can't go into a slideshow. */
+  videos: number;
 };
 
 export type ExportBlockers = {
