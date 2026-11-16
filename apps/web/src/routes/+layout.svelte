@@ -33,7 +33,7 @@
 </svelte:head>
 
 {#if data.user}
-	<Header user={data.user} isAdmin={data.isAdmin} />
+	<Header user={data.user} isAdmin={data.isAdmin} canCurate={data.canCurate} isReviewer={data.isReviewer} />
 {/if}
 
 <!-- On phones, leave room for the bottom tab bar (and the home indicator). -->

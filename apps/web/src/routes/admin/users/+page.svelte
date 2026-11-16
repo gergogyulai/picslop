@@ -11,6 +11,7 @@
 		{ id: 'all', label: 'All' },
 		{ id: 'staff', label: 'Admins' },
 		{ id: 'curator', label: 'Curators' },
+		{ id: 'reviewer', label: 'Reviewers' },
 		{ id: 'banned', label: 'Banned' },
 		{ id: 'blocked', label: 'Blacklisted' },
 		{ id: 'lurkers', label: 'Never posted' }
@@ -32,6 +33,7 @@
 		all: () => true,
 		staff: (u) => u.role === 'owner' || u.role === 'admin',
 		curator: (u) => u.role === 'curator',
+		reviewer: (u) => u.reviewer,
 		banned: (u) => u.banned,
 		blocked: (u) => u.blocked,
 		lurkers: (u) => u.posts === 0
@@ -82,6 +84,13 @@
 			return;
 		}
 		run(u, () => api(`/api/users/${u.id}/role`, { body: { role } }), `@${u.name} is now ${role === 'member' ? 'a member' : `a ${role}`}.`);
+	}
+
+	// Reviewer sits beside the role: anyone (admins and curators included) can also be a reviewer.
+	function toggleReviewer(u: AdminUser) {
+		const on = !u.reviewer;
+		if (on && u.role === 'curator' && !confirm(`@${u.name} is a curator. Also let them approve and veto images, including ones they curate?`)) return;
+		run(u, () => api(`/api/users/${u.id}/reviewer`, { body: { reviewer: on } }), on ? `@${u.name} can now review curated sets.` : `@${u.name} is no longer a reviewer.`);
 	}
 
 	function toggleBan(u: AdminUser) {
@@ -245,6 +254,15 @@
 									{ROLE_LABEL[u.role]}{u.id === data.meId ? ' · you' : ''}
 								</span>
 							{/if}
+							<button
+								class="label border-2 border-ink px-1.5 py-1 {u.reviewer ? 'bg-down text-paper' : 'bg-card text-muted border-dashed'}"
+								onclick={() => toggleReviewer(u)}
+								disabled={busy === u.id}
+								aria-pressed={u.reviewer}
+								title={u.reviewer ? 'Can approve and veto curated images. Click to revoke.' : 'Let them approve and veto curated images'}
+							>
+								{u.reviewer ? '✓ reviewer' : '+ reviewer'}
+							</button>
 							{#if u.banned}<span class="label bg-accent px-1.5 py-1">banned</span>{/if}
 							{#if u.blocked}<span class="label bg-ink px-1.5 py-1 text-paper">blacklisted</span>{/if}
 							{#if u.passkeys}<span class="label text-muted" title="{u.passkeys} passkey{u.passkeys === 1 ? '' : 's'}">🔑{u.passkeys}</span>{/if}
@@ -297,8 +315,18 @@
 			<p class="mt-2 font-mono text-xs text-muted">
 				<b class="text-ink">{u.posts}</b> posts · <b class="text-ink">{u.points}</b> pts · joined {ago(u.joinedAt)} · seen {ago(u.lastSeenAt)}
 			</p>
+			<div class="mt-3 flex flex-wrap gap-2">
+				<button
+					class="label border-2 border-ink px-2 py-1.5 {u.reviewer ? 'bg-down text-paper' : 'bg-card text-muted border-dashed'}"
+					onclick={() => toggleReviewer(u)}
+					disabled={busy === u.id}
+					aria-pressed={u.reviewer}
+				>
+					{u.reviewer ? '✓ reviewer' : '+ reviewer'}
+				</button>
+			</div>
 			{#if editable(u)}
-				<div class="mt-3 flex flex-wrap gap-2">
+				<div class="mt-2 flex flex-wrap gap-2">
 					<select
 						class="border-2 border-ink px-2 py-1.5 font-mono text-xs {ROLE_STYLE[u.role]}"
 						value={u.role}

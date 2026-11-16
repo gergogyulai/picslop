@@ -35,6 +35,8 @@ export type AdminUser = {
   /** Most recent session activity (sliding expiry refreshes this about once a day); 0 = no live session. */
   lastSeenAt: number;
   role: Role;
+  /** May approve or veto curated-set images. Independent of role. */
+  reviewer: boolean;
   banned: boolean;
   /** Email is blacklisted: they can't sign in at all. */
   blocked: boolean;
@@ -148,7 +150,7 @@ type UserDoc = { _id: ObjectId; name?: string; email: string; createdAt?: Date }
 
 async function loadUsers() {
   const { db } = await services();
-  const [docs, passkeys, banned, curators, admins, blocked] = await Promise.all([
+  const [docs, passkeys, banned, curators, admins, blocked, reviewers] = await Promise.all([
     db
       .collection<UserDoc>("user")
       .find({}, { projection: { name: 1, email: 1, createdAt: 1 } })
@@ -161,6 +163,7 @@ async function loadUsers() {
     redis.smembers(K.curators) as Promise<string[]>,
     redis.smembers(K.admins) as Promise<string[]>,
     listBlocked(),
+    redis.smembers(K.reviewers) as Promise<string[]>,
   ]);
   return {
     docs,
@@ -169,6 +172,7 @@ async function loadUsers() {
     curators: new Set(curators),
     admins: new Set(admins),
     blocked: new Set(blocked.map((b) => b.email)),
+    reviewers: new Set(reviewers),
   };
 }
 
@@ -211,6 +215,7 @@ export async function listAdminUsers(): Promise<AdminUser[]> {
       joinedAt: d.createdAt ? new Date(d.createdAt).getTime() : 0,
       lastSeenAt: seen.get(id) ?? 0,
       role: roleOf({ id, email: d.email }, u.admins, u.curators),
+      reviewer: u.reviewers.has(id),
       banned: u.banned.has(id),
       blocked: u.blocked.has(normalizeEmail(d.email)),
       passkeys: u.passkeys.get(id) ?? 0,
@@ -392,6 +397,7 @@ export async function purgeUser(
     .srem(K.banned, uid)
     .srem(K.curators, uid)
     .srem(K.admins, uid)
+    .srem(K.reviewers, uid)
     .del(K.userPosts(uid))
     .exec();
 

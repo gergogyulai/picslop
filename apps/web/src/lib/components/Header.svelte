@@ -2,7 +2,12 @@
 	import { page } from '$app/state';
 	import { signOut } from '$lib/session';
 
-	let { user, isAdmin }: { user: { id: string; name: string; email: string }; isAdmin: boolean } = $props();
+	let {
+		user,
+		isAdmin,
+		canCurate = false,
+		isReviewer = false
+	}: { user: { id: string; name: string; email: string }; isAdmin: boolean; canCurate?: boolean; isReviewer?: boolean } = $props();
 
 	// Phones: tuck the header away while scrolling down, bring it back on any upward scroll.
 	let hidden = $state(false);
@@ -31,7 +36,11 @@
 		<a href="/" class="group flex items-baseline gap-2" aria-label="picslop home">
 			<span class="display text-[1.7rem] transition-transform group-hover:-rotate-2 md:text-[2.3rem]">Pic<span class="text-accent">slop</span></span>
 		</a>
-		{#if isAdmin}<a href="/admin" class="label border-2 border-ink bg-lime px-1.5 py-0.5 text-[0.6rem] sm:hidden">admin ›</a>{/if}
+		<div class="flex gap-1.5 sm:hidden">
+			{#if isAdmin}<a href="/admin" class="label border-2 border-ink bg-lime px-1.5 py-0.5 text-[0.6rem]">admin ›</a>{/if}
+			{#if canCurate}<a href="/curate" class="label border-2 border-ink bg-card px-1.5 py-0.5 text-[0.6rem]">sets ›</a>{/if}
+			{#if isReviewer}<a href="/review" class="label border-2 border-ink bg-card px-1.5 py-0.5 text-[0.6rem]">review ›</a>{/if}
+		</div>
 
 		<!-- Phones use the bottom tab bar instead -->
 		<nav class="ml-auto hidden items-center gap-2 sm:flex md:gap-3">
@@ -39,6 +48,12 @@
 				<span aria-hidden="true" class="text-lg leading-none">+</span>
 				<span>Upload</span>
 			</a>
+			{#if canCurate}
+				<a href="/curate" class="btn" aria-current={page.url.pathname.startsWith('/curate') ? 'page' : undefined}>Sets</a>
+			{/if}
+			{#if isReviewer}
+				<a href="/review" class="btn" aria-current={page.url.pathname.startsWith('/review') ? 'page' : undefined}>Review</a>
+			{/if}
 			{#if isAdmin}
 				<a href="/admin" class="btn bg-lime!" aria-current={page.url.pathname.startsWith('/admin') ? 'page' : undefined}>Admin</a>
 			{/if}

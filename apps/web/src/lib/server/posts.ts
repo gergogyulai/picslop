@@ -30,6 +30,8 @@ export const K = {
   banned: "banned",
   /** User ids (besides admins) allowed to cherrypick posts onto the Picked board. */
   curators: "curators",
+  /** User ids allowed to approve or veto images in curated sets. Separate from curators. */
+  reviewers: "reviewers",
   /** User ids promoted to admin from the dashboard (on top of the permanent ADMIN_EMAILS owners). */
   admins: "admins",
   /** Blacklisted email -> JSON {email, at, by, reason}. Checked at every sign-in step. */
@@ -491,4 +493,17 @@ export async function isPromotedAdmin(userId: string) {
 export async function setPromotedAdmin(userId: string, admin: boolean) {
   if (admin) await redis.sadd(K.admins, userId);
   else await redis.srem(K.admins, userId);
+}
+
+// ---------------------------------------------------------------------------
+// Reviewers (approve or veto images in curated sets; granted by an admin, independent of other roles)
+// ---------------------------------------------------------------------------
+
+export async function isReviewer(userId: string) {
+  return Number(await redis.sismember(K.reviewers, userId)) === 1;
+}
+
+export async function setReviewer(userId: string, reviewer: boolean) {
+  if (reviewer) await redis.sadd(K.reviewers, userId);
+  else await redis.srem(K.reviewers, userId);
 }
